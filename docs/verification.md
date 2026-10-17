@@ -24,7 +24,7 @@ Verified in headless Chromium 154 with Playwright against the local app:
 - No JavaScript page exceptions during the interaction run.
 - At 390 × 844, all six routes rendered without horizontal overflow or JavaScript errors.
 
-The mobile overview image is [homepage-mobile-v2.jpg](homepage-mobile-v2.jpg). Earlier overview captures from the pre-improvement version remain in the directory as `homepage.jpg` and `homepage-mobile.jpg`; they are not presented as screenshots of the current design.
+The full interaction pass preceded a few final low-risk display and seed-fixture adjustments. After those adjustments, the final source received the six-route mobile smoke test and no-overflow check. A further browser rerun was attempted during final verification, but the Playwright cache had no bundled executable and the system Chromium process was blocked by the sandbox; the earlier interactive run and final route smoke evidence are therefore reported separately. The mobile overview image is [homepage-mobile-v2.jpg](homepage-mobile-v2.jpg). Earlier overview captures from the pre-improvement version remain in the directory as `homepage.jpg` and `homepage-mobile.jpg`; they are not presented as screenshots of the current design.
 
 ## Scope limits
 
