@@ -1,27 +1,31 @@
 # Verification record
 
-## Automated tests
+## Baseline
 
-- `npm test` — passed (Node.js built-in test runner).
-- Covered isolated synthetic fixtures, ticket ID generation and lifecycle transitions, security triage transitions, maintenance approval/rejection/rollback rules, and symptom-based network diagnosis.
+The starting point for this improvement cycle was a small vanilla JavaScript single-page application with five working simulated demos, browser-local persistence, a Node built-in test runner, and no install-time dependencies or backend. The original domain test and JavaScript syntax checks passed. The baseline had six routes (home plus five apps) and rendered without browser exceptions. Improvements focused on richer engineering workflows and recruiter context without changing the architecture.
+
+## Automated checks
+
+- `npm test` — passed after the workflow and documentation changes.
+- `node --check src/app.js` — passed.
+- `node --check src/model.js` — passed.
+- Domain tests cover isolated synthetic fixtures; ticket transitions, ownership, work notes and response targets; security triage and evidence-based closure; incident investigation and recovery; network branch results; and maintenance readiness, peer review, pass and rollback paths.
 
 ## Browser verification
 
-Verified in headless Chromium 154 using the local static app and Playwright. Browser run results:
+Verified in headless Chromium 154 with Playwright against the local app:
 
-- Homepage loaded and all five application routes rendered.
-- Health monitor: created a simulated latency incident and observed its alert.
-- Security: moved a finding into investigation and resolved it.
-- Helpdesk: created a ticket and confirmed it appeared in the queue.
-- Network isolation: ran an East wing packet-loss check and observed the wireless access point fault domain.
-- Maintenance: approved the seeded change and recorded its rollback.
-- Reset restored the seeded maintenance request; the homepage also rendered at a 390 × 844 mobile viewport.
+- Homepage and all five app routes rendered; the homepage showed five casebook cards and the dynamic synthetic alert status.
+- Health: recorded a server investigation and recovery check; the node returned to Healthy.
+- Security: triaged the critical finding with an owner and response plan, then resolved it with verification evidence.
+- Helpdesk: assigned and progressed a queued ticket with a work note.
+- Network: diagnosed East wing packet loss to the AP/local fault domain and handed the evidence into a new helpdesk ticket.
+- Maintenance: confirmed approval remained disabled before readiness, completed the checklist, approved and started the change, recorded failed validation, and executed rollback.
+- No JavaScript page exceptions during the interaction run.
+- At 390 × 844, all six routes rendered without horizontal overflow or JavaScript errors.
 
-No browser JavaScript exceptions were observed during the completed run. Screenshots captured from that run:
+The mobile overview image is [homepage-mobile-v2.jpg](homepage-mobile-v2.jpg). Earlier overview captures from the pre-improvement version remain in the directory as `homepage.jpg` and `homepage-mobile.jpg`; they are not presented as screenshots of the current design.
 
-- [Desktop overview](homepage.jpg)
-- [Mobile overview](homepage-mobile.jpg)
+## Scope limits
 
-## Limits
-
-These are simulated browser workflows backed by local storage and synthetic fixtures. Browser checks do not establish live integrations, server persistence, authentication, production suitability, or real infrastructure behavior. The repository started empty, so no pre-existing implementation or V2 work was available to compare or reuse.
+All scenarios and state changes are synthetic and browser-local. Browser checks establish UI behavior for the exercised flows only; they do not establish live monitoring, production security controls, persistence across browsers, real SLA commitments, external integrations, or operational suitability. Automated tests validate the domain model; no CI pipeline or cross-browser matrix was run.

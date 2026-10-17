@@ -1,30 +1,36 @@
 # Northstar · ICT Engineering Portfolio
 
-A responsive, single-page ICT engineering portfolio with five interactive operational demos. It runs as a static site and uses browser local storage; there is no backend, service, or external data connection.
+A recruiter-facing casebook with five interactive, browser-local ICT operations simulations. Each application walks through a synthetic scenario from signal or request, through investigation and decision, to a recorded outcome. The portfolio is a static site with no backend, database, external service, or runtime dependency.
 
 ## Run locally
 
-Requires Node.js 20+ for tests and Python 3 for the static server. No package installation is required.
+Requires Node.js 20+ for automated tests and Python 3 for the static server. No install step is needed.
 
 ```sh
 npm test
 npm start
 ```
 
-Open `http://localhost:4173`. To reset all sample state, use **Reset demo** in the top bar. The reset also clears saved changes in the browser.
+Open <http://localhost:4173>. Use **Reset demo** to restore seeded scenarios in the current browser. State is saved in local storage under the V2 demo key.
 
-## Applications
+## The five applications
 
-- **Infrastructure health monitor:** view five sample assets, availability, response time, active alerts, acknowledge an alert, and toggle a simulated latency incident.
-- **Security findings:** filter findings by severity and status, move an issue into investigation, resolve it, and export a JSON report.
-- **IT helpdesk:** create tickets, filter the queue, and advance ticket status through new, in progress, waiting, and resolved.
-- **Network fault isolation:** select a site, symptom, and impact scope to run simulated endpoint, gateway, and DNS checks; turn the output into a helpdesk ticket.
-- **Maintenance & rollback:** submit a change request, approve or reject pending work, mark an approved change complete, or record rollback execution.
+| Application | Engineering evidence | Demonstration |
+| --- | --- | --- |
+| Infrastructure Health Monitor | Correlate threshold signals, record a likely cause and action, verify recovery against service metrics | Investigate an alert, then record a recovery check |
+| Security Findings Dashboard | Prioritise exposure and impact; assign ownership and a response plan; close only with verification evidence | Triage or resolve a synthetic finding |
+| IT Helpdesk Ticket System | Capture requester impact, assign ownership, track a priority-based response target, maintain work notes and valid lifecycle transitions | Create a ticket or progress a queued request |
+| Network Fault Isolation Tool | Move from impact scope through client, gateway and service checks; distinguish local, DNS and upstream fault domains | Run a diagnostic and hand the findings to the service desk |
+| Maintenance Approval & Rollback | Gate approval on readiness evidence; document impact, validation, implementation decision and recovery path | Review a change, validate it, or route failure into rollback |
 
-## Data and limitations
+All actions are simulations. They update only the browser-local casebook and never contact infrastructure or real users.
 
-All names, events, metrics, findings, and changes are fictional. Data persists in the current browser profile only. Reloading retains changes; **Reset demo** restores the original fixtures. Diagnostic results are rule-based illustrations, not live tests. Approval and rollback actions update the demo state only and never affect infrastructure. The application has no user authentication, server-side storage, integrations, notifications, or access controls. Use it as a portfolio demonstration, not as an operational control plane.
+## Engineering case studies
 
-## Verification
+See [the case studies](docs/case-studies.md) for the problem, investigation, decision, verification and lesson represented by each scenario. [Verification evidence](docs/verification.md) records the checks actually run and their limits. Screenshots are available in [`docs/`](docs/).
 
-Run `npm test` for automated domain-workflow tests. Browser-based verification evidence and any constraints are recorded in [`docs/verification.md`](docs/verification.md).
+## Architecture and limits
+
+The app is a no-build vanilla JavaScript single-page interface: `src/model.js` owns synthetic fixtures and domain transitions, `src/app.js` renders workflows and handles local interactions, and `src/styles.css` provides the responsive design system. `index.html` supplies shared navigation and status. Tests use Node's built-in test runner; there are no installed packages or services.
+
+All names, alerts, metrics, findings, tickets, changes and outcomes are fictional. Diagnostic results are rule-based examples, not live probes. The application has no authentication, server persistence, access controls, integrations or real notifications and is not an operational control plane.
