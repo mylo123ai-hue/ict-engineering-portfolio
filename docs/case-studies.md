@@ -16,7 +16,7 @@ These are fictional scenarios built from synthetic data. The UI records simulate
 
 ## 2 · Security findings — overdue kernel update
 
-**Problem.** Finding SEC-2418 is a critical, externally unexposed but user-VLAN-reachable kernel patch gap on a business-critical ERP host (CVSS 9.8).
+**Problem.** Finding SEC-2418 is a critical kernel patch gap on a business-critical ERP host. It is internally reachable from the user VLAN (CVSS 9.8).
 
 **Investigation.** Consider severity with reachability and business impact, assign an accountable owner, and write a response plan. Closure requires a verification record.
 
@@ -32,9 +32,9 @@ These are fictional scenarios built from synthetic data. The UI records simulate
 
 **Investigation.** Review the request details and response target, assign an owner, choose a valid lifecycle action, and leave a work note that another engineer can continue from.
 
-**Decision and trade-off.** High priority receives a shorter illustrative 15-minute first-response target, compared with 30 minutes for standard priority. These are demo rules, not a service contract.
+**Decision and trade-off.** High priority receives a shorter illustrative 15-minute first-response target, compared with 30 minutes for standard priority. Newly created tickets age from their browser-local creation timestamp; seeded tickets retain fixed synthetic fixture ages. These are demo rules, not a service contract.
 
-**Verification.** Domain tests cover targets, invalid transitions, ownership and work-note requirements. Browser checks progressed an existing ticket and created a ticket from network diagnostic evidence.
+**Verification.** Domain tests cover response targets, invalid transitions, ownership, work-note requirements and requester-confirmed closure. Browser checks progressed an existing ticket and created a ticket from network diagnostic evidence.
 
 **Lesson demonstrated.** Good service-desk work preserves impact, accountability and a useful handover rather than just changing a status label.
 
@@ -56,9 +56,9 @@ These are fictional scenarios built from synthetic data. The UI records simulate
 
 **Investigation.** Review ownership, window, impact, rollback and validation readiness. The approval gate requires all five readiness checks. High-risk changes also require an independent peer review.
 
-**Decision and trade-off.** The operator must complete missing validation planning before approval. During implementation, a failed validation routes the change to rollback-required; recorded recovery evidence then closes the path as rolled back.
+**Decision and trade-off.** The operator must complete missing validation planning before approval. Starting implementation also requires confirmation that the approved window is open and a pre-change checkpoint; the confirmation is written to the decision log. A failed validation routes the change to rollback-required; recorded recovery evidence then closes the path as rolled back.
 
-**Verification.** Tests cover readiness gates, peer review and both pass/rollback transitions. Browser verification exercised the disabled approval gate, readiness completion, implementation, failed validation and rollback.
+**Verification.** Tests cover readiness gates, independent peer review and pass/rollback transitions, including a start attempt without window confirmation. Browser verification exercised the disabled approval gate, readiness completion, window confirmation, pre-change evidence, failed validation and rollback.
 
 **Lesson demonstrated.** Change approval is an explicit risk decision, and a rehearsable recovery path is part of the change rather than an afterthought.
 

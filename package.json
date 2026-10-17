@@ -3,5 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "scripts": {"test": "node --test", "start": "python3 -m http.server 4173"}
+  "scripts": {
+    "test": "node --test && python3 -B -m unittest discover -s tests -p 'test_*.py'",
+    "check": "node --check src/app.js && node --check src/model.js",
+    "start": "python3 scripts/serve.py"
+  }
 }
