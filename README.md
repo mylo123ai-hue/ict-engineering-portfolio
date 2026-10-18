@@ -75,7 +75,7 @@ All names, alerts, metrics, findings, tickets, changes and outcomes are fictiona
 
 ### API contract
 
-`GET /api/state` returns `{ "state": null, "revision": 0 }` for a new database, or the saved snapshot and revision. `PUT /api/state` accepts `{ "state": <casebook>, "revision": <expected revision> }`. Each successful write increments the revision; stale writes receive `409 Conflict` and remain in the browser as a recoverable local snapshot. `/api/health` reports whether the SQLite store can be read.
+`GET /api/state` returns `{ "state": null, "revision": 0 }` for a new database, or the saved snapshot and revision. `PUT /api/state` accepts `{ "state": <casebook>, "revision": <expected revision> }`. The server caps request size at 1 MB and validates core casebook fields and state gates before writing. Each successful write increments the revision; stale writes receive `409 Conflict` and remain in the browser as a recoverable local snapshot. Invalid payloads return `400`, `413`, `415`, or `422`; storage errors return `503`. `/api/health` reports whether the SQLite store can be read.
 
 ## Personalizing the portfolio
 

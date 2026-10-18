@@ -69,9 +69,19 @@ class DemoStateApiTests(unittest.TestCase):
 
     @staticmethod
     def valid_casebook():
-        node_ids = ("core-sw-01", "app-srv-02", "db-pri-01", "fw-edge-01", "ap-east-14")
+        signals = {
+            "core-sw-01": {"portUtilization": 42, "interfaceErrors": 0.1},
+            "app-srv-02": {"cpu": 61, "memory": 67, "queueDepth": 8},
+            "db-pri-01": {"connectionUtilization": 38, "storage": 64},
+            "fw-edge-01": {"cpu": 24, "sessionUtilization": 41},
+            "ap-east-14": {"missedHeartbeats": 0, "poeDraw": 7.2},
+        }
         return {
-            "nodes": [{"id": node_id} for node_id in node_ids],
+            "nodes": [
+                {"id": node_id, "name": node_id, "type": "Synthetic", "zone": "Lab", "health": "Healthy",
+                 "latency": 8, "uptime": "99.99%", "icon": "*", "signals": node_signals}
+                for node_id, node_signals in signals.items()
+            ],
             "findings": [], "tickets": [], "maintenance": [], "events": ["Synthetic demo event"],
         }
 
@@ -166,6 +176,15 @@ class DemoStateApiTests(unittest.TestCase):
         duplicate = self.valid_casebook()
         duplicate["nodes"][1]["id"] = duplicate["nodes"][0]["id"]
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": duplicate})[0], 422)
+        malformed_signal = self.valid_casebook()
+        malformed_signal["nodes"][0]["signals"]["portUtilization"] = "unknown"
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": malformed_signal})[0], 422)
+        malformed_status = self.valid_casebook()
+        malformed_status["nodes"][0]["health"] = []
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": malformed_status})[0], 422)
+        invalid_ticket = self.valid_casebook()
+        invalid_ticket["tickets"] = [{"id": "HD-1", "subject": "Test", "requester": "Synthetic", "assignee": "Unassigned", "category": "Unsupported", "priority": "Normal", "status": "New", "ageMinutes": 0, "firstResponseMinutes": None, "updates": []}]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": invalid_ticket})[0], 422)
         self.assertEqual(self.request("/api/not-real")[0], 404)
         self.assertEqual(self.request("/.git/config")[0], 404)
 
