@@ -2,7 +2,7 @@
 
 ## Baseline
 
-The starting point was a static vanilla JavaScript single-page application with five simulated operations demos, browser-local persistence, Node's built-in test runner, and no application dependencies or backend. The homepage and five routes rendered. The improvement retained that architecture and added stronger investigation gates, evidence records, saved-state validation, and recruiter-facing case studies.
+The starting point for the portfolio was a static vanilla JavaScript single-page application with five simulated operations demos, browser-local persistence, Node's built-in test runner, and no application dependencies or backend. The homepage and five routes rendered. The first improvement retained that architecture and added stronger investigation gates, evidence records, saved-state validation, and recruiter-facing case studies.
 
 ## Automated checks
 
@@ -42,6 +42,17 @@ Executed in headless Chromium 154 using the environment's Playwright 1.62.1 pack
 
 The [screenshot gallery](screenshots.md) links the baseline and current homepage captures, plus one current view for each application. Captures use seeded synthetic data.
 
+## Backend cycle
+
+- Added a Python standard-library JSON API at `/api/state` and `/api/health`; SQLite stores one synthetic casebook snapshot outside the repository by default.
+- The API accepts bounded JSON snapshots and checks a revision number on each write. Stale revisions receive HTTP 409 and do not overwrite the shared snapshot.
+- Ten Python tests cover loopback binding, initial state, SQLite round-trip and restart persistence, simultaneous stale-write rejection, bounded payload shape and declared size, malformed JSON, media type and revision handling, SQLite path confinement, unknown API routes, and the existing static-path restrictions.
+- Chromium browser checks exercised the API-connected state indicator, ticket creation, persistence after reload and in a fresh browser context, server-backed demo reset, V2 browser-cache import into an empty database, localStorage fallback when API requests fail, concurrent-write conflict backup and recovery, and 320 px fallback layout. No page errors occurred.
+- If the backend becomes unavailable during a write, or the app is already in browser fallback, subsequent edits are backed up in local storage and surfaced with the backup/recovery controls so a later server load cannot silently replace them.
+- The confirmed server-copy action validates that a shared snapshot is reachable before removing the local backup. Chromium verified an offline attempt keeps the backup, while a live two-browser conflict reloads the accepted writer's server copy and leaves no JavaScript errors.
+- Chromium checked all six routes at 320, 390, 768, 1024, and 1440 px (30 combinations), with no horizontal overflow. It also created an offline helpdesk ticket, reloaded the page, and confirmed the unsynced backup and recovery actions remained available; at 320 px those actions use compact, accessibly named icon buttons without overflow.
+- An empty database is seeded from a valid existing browser save when available, otherwise from the synthetic default fixture. Invalid saved state remains rejected by the existing client model validator.
+
 ## Scope limits
 
-The browser checks support the specific UI and workflow behaviors listed above. They are not a complete accessibility audit, cross-browser matrix, production acceptance, or operational suitability review. The applications use synthetic, rule-based examples and browser-local storage. They do not connect to infrastructure, scan for vulnerabilities, probe networks, send notifications, enforce identities, or provide server persistence. No CI pipeline or external deployment was configured.
+The browser checks support the specific UI and workflow behaviors listed above. They are not a complete accessibility audit, cross-browser matrix, production acceptance, or operational suitability review. The applications use synthetic, rule-based examples and a local SQLite snapshot with a browser-cache fallback. They do not connect to infrastructure, scan for vulnerabilities, probe networks, send notifications, enforce identities, or provide cloud persistence. The preview server binds only to loopback; use an SSH tunnel for a private VPS demo. No CI pipeline or public deployment was configured.

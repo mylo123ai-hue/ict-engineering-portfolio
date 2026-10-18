@@ -13,12 +13,26 @@ const navItems = [
   { id: "maintenance", icon: "◷", label: "Maintenance & rollback", short: "Maintenance", mobileLabel: "Change" }
 ];
 const storageKey = "northstar-ict-demo-v2";
+const conflictStorageKey = `${storageKey}-sync-conflict-v1`;
 let state;
 let storageUnavailable = false;
+let hasValidLocalState = false;
+let localConflictBackup = null;
 try {
   const cached = migrateDemoState(JSON.parse(localStorage.getItem(storageKey)));
-  state = isDemoState(cached) ? cached : cloneSeed();
+  hasValidLocalState = isDemoState(cached);
+  state = hasValidLocalState ? cached : cloneSeed();
 } catch { state = cloneSeed(); storageUnavailable = true; }
+try {
+  const backup = migrateDemoState(JSON.parse(localStorage.getItem(conflictStorageKey)));
+  if (isDemoState(backup)) localConflictBackup = backup;
+} catch {}
+let backendReady = false;
+let persistenceConflict = Boolean(localConflictBackup);
+let appReady = false;
+let backendRevision = 0;
+let persistenceMode = "connecting";
+let remoteWrites = Promise.resolve();
 let networkResult = null;
 let networkInputs = { site: "North campus", symptom: "Slow connection", scope: "Single room" };
 let currentRoute = "";
@@ -37,8 +51,166 @@ const card = (inner, cls = "card") => `<section class="${cls}">${inner}</section
 const nowLabel = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 function save() {
-  try { localStorage.setItem(storageKey, JSON.stringify(state)); storageUnavailable = false; return true; }
-  catch { storageUnavailable = true; return false; }
+  let localSaved = false;
+  try { localStorage.setItem(storageKey, JSON.stringify(state)); storageUnavailable = false; localSaved = true; }
+  catch { storageUnavailable = true; }
+  if (backendReady) queueBackendSave();
+  else if (appReady && persistenceMode === "local") {
+    preserveUnsyncedSnapshot();
+    setPersistenceStatus("conflict");
+    toast("Backend is unavailable; your unsynced casebook is backed up in this browser.");
+  }
+  if (persistenceConflict) {
+    try { localStorage.setItem(conflictStorageKey, JSON.stringify(state)); localConflictBackup = structuredClone(state); }
+    catch { storageUnavailable = true; }
+  }
+  return localSaved || backendReady;
+}
+function preserveUnsyncedSnapshot() {
+  const snapshot = structuredClone(state);
+  persistenceConflict = true;
+  try { localStorage.setItem(conflictStorageKey, JSON.stringify(snapshot)); localConflictBackup = snapshot; }
+  catch { storageUnavailable = true; }
+}
+function setPersistenceStatus(mode) {
+  persistenceMode = mode;
+  const status = document.querySelector("#persistenceStatus");
+  if (!status) return;
+  const labels = {
+    connecting: "Connecting",
+    connected: "DB saved",
+    saving: "DB saving",
+    local: "Local only",
+    conflict: "Sync conflict"
+  };
+  status.textContent = labels[mode] || labels.local;
+  status.dataset.state = mode;
+  const conflict = mode === "conflict";
+  const download = document.querySelector("#downloadConflict");
+  const reload = document.querySelector("#reloadShared");
+  if (download) download.hidden = !conflict;
+  if (reload) reload.hidden = !conflict;
+  const summary = document.querySelector("#persistenceSummary");
+  if (summary) summary.textContent = mode === "connected" || mode === "saving" ? "SQLite-backed" : "browser fallback";
+}
+function queueBackendSave() {
+  const snapshot = structuredClone(state);
+  remoteWrites = remoteWrites.then(async () => {
+    if (!backendReady) return;
+    setPersistenceStatus("saving");
+    let response;
+    try {
+      response = await fetch("/api/state", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision: backendRevision, state: snapshot })
+      });
+    } catch {
+      backendReady = false;
+      preserveUnsyncedSnapshot();
+      setPersistenceStatus("conflict");
+      toast("Backend is unavailable; your unsynced casebook is backed up in this browser. Download it before using the server copy.");
+      return;
+    }
+    const result = await response.json().catch(() => ({}));
+    if (response.status === 409) {
+      backendReady = false;
+      persistenceConflict = true;
+      const latestSnapshot = structuredClone(state);
+      try { localStorage.setItem(conflictStorageKey, JSON.stringify(latestSnapshot)); localConflictBackup = latestSnapshot; } catch { storageUnavailable = true; }
+      setPersistenceStatus("conflict");
+      toast("Another session changed the shared casebook. Your unsynced snapshot is backed up here; download it before using the server copy.");
+      return;
+    }
+    if (!response.ok || !Number.isInteger(result.revision)) {
+      backendReady = false;
+      preserveUnsyncedSnapshot();
+      setPersistenceStatus("conflict");
+      toast("Backend save failed; your unsynced casebook is backed up in this browser. Download it before using the server copy.");
+      return;
+    }
+    backendRevision = result.revision;
+    setPersistenceStatus("connected");
+  }).catch(() => {
+    backendReady = false;
+    preserveUnsyncedSnapshot();
+    setPersistenceStatus("conflict");
+    toast("Backend save failed; your unsynced casebook is backed up in this browser. Download it before using the server copy.");
+  });
+}
+function storeLocalSnapshot(snapshot) {
+  try { localStorage.setItem(storageKey, JSON.stringify(snapshot)); storageUnavailable = false; }
+  catch { storageUnavailable = true; }
+}
+async function initializeApp() {
+  if (localConflictBackup) {
+    state = localConflictBackup;
+    persistenceConflict = true;
+    appReady = true;
+    setPersistenceStatus("conflict");
+    render();
+    toast("Restored this browser's unsynced casebook. Download a backup or deliberately use the server copy.");
+    return;
+  }
+  try {
+    const response = await fetch("/api/state", { cache: "no-store" });
+    if (!response.ok) throw new Error("Backend is unavailable");
+    const remote = await response.json();
+    if (!Number.isInteger(remote.revision) || remote.revision < 0) throw new Error("Invalid backend revision");
+    backendRevision = remote.revision;
+    if (remote.state !== null) {
+      const restored = migrateDemoState(remote.state);
+      if (!isDemoState(restored)) throw new Error("Backend state failed validation");
+      state = restored;
+      storeLocalSnapshot(state);
+    } else if (hasValidLocalState) {
+      state = migrateDemoState(state);
+    } else {
+      state = cloneSeed();
+    }
+    storeLocalSnapshot(state);
+    backendReady = true;
+    appReady = true;
+    setPersistenceStatus("connected");
+    render();
+    if (remote.state === null) queueBackendSave();
+  } catch {
+    backendReady = false;
+    appReady = true;
+    storeLocalSnapshot(state);
+    setPersistenceStatus("local");
+    render();
+  }
+}
+function downloadConflictBackup() {
+  const content = JSON.stringify(localConflictBackup || state, null, 2);
+  const url = URL.createObjectURL(new Blob([content], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "northstar-unsynced-casebook.json";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function useServerCopy() {
+  if (!window.confirm("Discard this browser's unsynced casebook and reload the current server copy? Download a backup first if you need these changes.")) return;
+  try {
+    const response = await fetch("/api/state", { cache: "no-store" });
+    if (!response.ok) throw new Error("The shared casebook is unavailable");
+    const remote = await response.json();
+    if (!Number.isInteger(remote.revision) || remote.revision < 0 || (remote.state !== null && !isDemoState(migrateDemoState(remote.state)))) {
+      throw new Error("The shared casebook failed validation");
+    }
+  } catch {
+    toast("The shared casebook is unavailable; your browser backup is still saved.");
+    return;
+  }
+  try {
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(conflictStorageKey);
+  } catch { storageUnavailable = true; }
+  localConflictBackup = null;
+  persistenceConflict = false;
+  location.reload();
 }
 function addEvent(message) {
   state.events.unshift(`${nowLabel()} · ${message}`);
@@ -46,7 +218,7 @@ function addEvent(message) {
 }
 function toast(message) {
   const el = document.querySelector("#toast");
-  el.textContent = storageUnavailable ? `${message} Storage is unavailable; changes last only in this browser session.` : message;
+  el.textContent = storageUnavailable && !backendReady ? `${message} Browser storage is unavailable; changes last only in this session.` : message;
   el.classList.add("show");
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => el.classList.remove("show"), 2800);
@@ -76,7 +248,7 @@ function renderHome() {
   const pendingChanges = state.maintenance.filter(m => m.status === "Pending approval").length;
   return `${title("ICT Engineering Portfolio", `Evidence-led case studies across infrastructure, security, service operations, networks, and change control. ${today}.`, `<span class="date-chip">◉ &nbsp;Interactive casebook</span>`)}
     <div class="welcome-banner"><div class="banner-copy"><span class="banner-kicker"><span class="pulse"></span> ENGINEERING CASEBOOK · SIMULATED</span><h2>Investigate the signal.<br/>Decide with evidence.</h2><p>Five practical workflows demonstrate engineering judgement from first symptom to recorded outcome.</p><a href="#health" class="banner-link">Explore an infrastructure incident <span aria-hidden="true">→</span></a></div><div class="banner-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit orbit-three"></div><div class="art-core"><span>✳</span></div><i class="art-dot dot-one"></i><i class="art-dot dot-two"></i><i class="art-dot dot-three"></i></div></div>
-    <div class="section-heading"><div><h2>Operational snapshot</h2><p>Scenario state across the five application labs</p></div><span class="muted small">Browser-local demo data</span></div>
+    <div class="section-heading"><div><h2>Operational snapshot</h2><p>Scenario state across the five application labs</p></div><span class="muted small">Synthetic casebook · <span id="persistenceSummary">SQLite</span></span></div>
     <div class="metric-grid"><div class="metric-card"><div class="metric-top"><span>Infrastructure health</span><span class="metric-symbol mint">⌁</span></div><div class="metric-value">${state.nodes.length - attention}<small> / ${state.nodes.length} healthy</small></div><div class="metric-foot"><span class="${attention ? "text-amber" : "text-green"}">${attention} alerts to investigate</span><span class="sparkline mint-line">▁▃▂▅▃▆▄▇</span></div></div><div class="metric-card"><div class="metric-top"><span>Open security findings</span><span class="metric-symbol coral">⬡</span></div><div class="metric-value">${openFindings}<small> active findings</small></div><div class="metric-foot"><span class="text-coral">${state.findings.filter(f => f.severity === "Critical" && f.status !== "Resolved").length} critical · prioritize</span><span class="sparkline coral-line">▆▄▅▃▅▂▄▂</span></div></div><div class="metric-card"><div class="metric-top"><span>Helpdesk queue</span><span class="metric-symbol blue">▤</span></div><div class="metric-value">${openTickets}<small> open tickets</small></div><div class="metric-foot"><span class="text-blue">${state.tickets.filter(t => t.priority === "High" && t.status !== "Resolved").length} high priority</span><span class="sparkline blue-line">▂▄▃▅▄▆▃▅</span></div></div><div class="metric-card"><div class="metric-top"><span>Change requests</span><span class="metric-symbol violet">◷</span></div><div class="metric-value">${pendingChanges}<small> awaiting approval</small></div><div class="metric-foot"><span class="text-violet">Readiness gated</span><span class="sparkline violet-line">▂▃▂▄▃▅▄▆</span></div></div></div>
     <div class="section-heading casebook-heading"><div><h2>Engineering casebook</h2><p>Pick a scenario to see the operational method and evidence</p></div></div>
     <div class="casebook-grid">${navItems.slice(1).map((item, i) => {
@@ -128,7 +300,7 @@ function renderHelpdesk() {
   return `${title("IT helpdesk", "Work the request from intake through an owned update and a clear resolution record.", `<button class="button button-primary" data-action="open-ticket-form">＋ &nbsp;New ticket</button>`)}
   ${engineeringBrief("helpdesk")}
   <div class="ticket-metrics"><div class="ticket-metric"><span class="metric-symbol blue">▤</span><div><small>Open tickets</small><strong>${state.tickets.filter(t => t.status !== "Resolved").length}</strong></div><span class="metric-trend">All queues</span></div><div class="ticket-metric"><span class="metric-symbol coral">◷</span><div><small>High priority</small><strong>${state.tickets.filter(t => t.priority === "High" && t.status !== "Resolved").length}</strong></div><span class="metric-trend">Needs attention</span></div><div class="ticket-metric"><span class="metric-symbol mint">✓</span><div><small>Resolved</small><strong>${state.tickets.filter(t => t.status === "Resolved").length}</strong></div><span class="metric-trend">Recorded</span></div><div class="ticket-metric sla-summary"><span class="metric-symbol violet">◎</span><div><small>First response SLA</small><strong>${esc(slaSummary)}</strong></div></div></div>
-  ${card(`<div class="table-header"><div><h3>Service queue <span class="count-pill">${state.tickets.length}</span></h3><p>First-response example · High 15 min · Normal / low 30 min</p></div><div class="table-controls"><label class="sr-only" for="ticketFilter">Filter tickets by status</label><select id="ticketFilter" class="select-control"><option value="Active">Active tickets</option><option value="All">All tickets</option><option>New</option><option>In progress</option><option>Waiting</option><option>Resolved</option></select><button class="button button-quiet button-small" data-action="ticket-refresh" aria-label="Refresh ticket queue">↻</button></div></div><div class="table-wrap" role="region" tabindex="0" aria-label="Service queue table" aria-describedby="service-table-scroll-help"><p id="service-table-scroll-help" class="sr-only">Focus this region and use the left and right arrow keys to view all columns.</p><table><thead><tr><th>TICKET / REQUEST</th><th>REQUESTER</th><th>PRIORITY</th><th>FIRST RESPONSE</th><th>ASSIGNEE</th><th>STATUS</th><th></th></tr></thead><tbody>${state.tickets.map(ticket => `<tr data-ticket-status="${ticket.status}" data-ticket-id="${esc(ticket.id)}"><td><div class="ticket-subject"><small>${esc(ticket.id)} · ${esc(ticket.category)}${ticket.relatedAssetId ? ` · ${esc(ticket.relatedAssetId)}` : ""}</small><strong>${esc(ticket.subject)}</strong></div></td><td>${esc(ticket.requester)}</td><td><span class="priority ${statusClass(ticket.priority)}"><i></i>${ticket.priority}</span></td><td>${ticketSla(ticket)}</td><td>${esc(ticket.assignee)}</td><td><span class="status-pill ${statusClass(ticket.status)}"><i></i>${ticket.status}</span></td><td><button class="button button-quiet button-small" data-action="ticket-review" data-id="${ticket.id}" aria-label="Review ${esc(ticket.id)}">Review</button></td></tr>`).join("")}<tr id="ticketFilterEmpty" hidden><td colspan="7"><div class="empty-state compact" role="status">No tickets match this filter.</div></td></tr></tbody></table></div><div class="table-bottom"><span>Training targets only: High 15 min · Normal/low 30 min · not a service commitment</span><span>Ticket updates are saved locally</span></div>`)}
+  ${card(`<div class="table-header"><div><h3>Service queue <span class="count-pill">${state.tickets.length}</span></h3><p>First-response example · High 15 min · Normal / low 30 min</p></div><div class="table-controls"><label class="sr-only" for="ticketFilter">Filter tickets by status</label><select id="ticketFilter" class="select-control"><option value="Active">Active tickets</option><option value="All">All tickets</option><option>New</option><option>In progress</option><option>Waiting</option><option>Resolved</option></select><button class="button button-quiet button-small" data-action="ticket-refresh" aria-label="Refresh ticket queue">↻</button></div></div><div class="table-wrap" role="region" tabindex="0" aria-label="Service queue table" aria-describedby="service-table-scroll-help"><p id="service-table-scroll-help" class="sr-only">Focus this region and use the left and right arrow keys to view all columns.</p><table><thead><tr><th>TICKET / REQUEST</th><th>REQUESTER</th><th>PRIORITY</th><th>FIRST RESPONSE</th><th>ASSIGNEE</th><th>STATUS</th><th></th></tr></thead><tbody>${state.tickets.map(ticket => `<tr data-ticket-status="${ticket.status}" data-ticket-id="${esc(ticket.id)}"><td><div class="ticket-subject"><small>${esc(ticket.id)} · ${esc(ticket.category)}${ticket.relatedAssetId ? ` · ${esc(ticket.relatedAssetId)}` : ""}</small><strong>${esc(ticket.subject)}</strong></div></td><td>${esc(ticket.requester)}</td><td><span class="priority ${statusClass(ticket.priority)}"><i></i>${ticket.priority}</span></td><td>${ticketSla(ticket)}</td><td>${esc(ticket.assignee)}</td><td><span class="status-pill ${statusClass(ticket.status)}"><i></i>${ticket.status}</span></td><td><button class="button button-quiet button-small" data-action="ticket-review" data-id="${ticket.id}" aria-label="Review ${esc(ticket.id)}">Review</button></td></tr>`).join("")}<tr id="ticketFilterEmpty" hidden><td colspan="7"><div class="empty-state compact" role="status">No tickets match this filter.</div></td></tr></tbody></table></div><div class="table-bottom"><span>Training targets only: High 15 min · Normal/low 30 min · not a service commitment</span><span>Ticket updates are saved to the local casebook</span></div>`)}
   <div class="split-grid">${card(`<div class="card-header"><div><h3>Queue by status</h3><p>Current service workload</p></div></div><div class="queue-bars">${["New", "In progress", "Waiting", "Resolved"].map((status, i) => `<div><span>${status}</span><div class="queue-track"><i style="width:${Math.max(8, state.tickets.filter(t => t.status === status).length / Math.max(1, state.tickets.length) * 100)}%;--q:${["#7188ff", "#42c6a5", "#efb756", "#a78bfa"][i]}"></i></div><b>${state.tickets.filter(t => t.status === status).length}</b></div>`).join("")}</div>`)}${card(`<div class="card-header"><div><h3>Good service-desk practice</h3><p>Each update should help the next engineer</p></div></div><div class="note-items"><div><span>01</span><p><strong>Capture impact and scope</strong>Record who is affected and when it started.</p></div><div><span>02</span><p><strong>Assign a clear owner</strong>Keep the requester informed at each handoff.</p></div><div><span>03</span><p><strong>Close with evidence</strong>Note the recovery check and user confirmation.</p></div></div>`)}</div>
   `;
 }
@@ -171,7 +343,7 @@ function renderMaintenance() {
     const readiness = change.status === "Pending approval" ? `<div class="readiness-panel"><div class="readiness-heading"><strong>Approval readiness</strong><span>${readinessChecks.filter(([key]) => change.readiness?.[key]).length}/${readinessChecks.length} complete${change.risk === "High" ? ` · ${change.readiness?.peerReview ? "peer review set" : "peer review required"}` : ""}</span></div>${checks}${peerReview}</div>` : "";
     return `<article class="change-item"><div class="change-item-top"><span class="change-id">${esc(change.id)} · ${esc(change.owner)}</span><span class="status-pill ${statusClass(change.status)}"><i></i>${esc(change.status)}</span></div><h3>${esc(change.title)}</h3><div class="change-meta"><span>▣ ${esc(change.system)}</span><span>◷ ${esc(change.window)}</span><span>Risk · <b class="risk-${statusClass(change.risk)}">${esc(change.risk)}</b></span></div>${change.findingId ? `<div class="change-impact"><b>Linked finding</b><a href="#security">${esc(change.findingId)} · View finding →</a></div>` : ""}${change.impact ? `<div class="change-impact"><b>Impact assessment</b>${esc(change.impact)}</div>` : ""}${change.validationPlan ? `<div class="change-impact"><b>Post-change validation</b>${esc(change.validationPlan)}</div>` : ""}<div class="rollback-box"><span>↶</span><div><strong>Rollback plan</strong><p>${esc(change.rollback)}</p></div></div>${readiness}<div class="change-actions">${actions}</div>${change.history?.length ? `<div class="change-history"><b>Decision log</b>${change.history.map(entry => `<span>${esc(entry)}</span>`).join("")}</div>` : ""}</article>`;
   }).join("") || `<div class="empty-state"><span>◷</span><strong>No change requests yet</strong><p>Create a request to start a review workflow.</p></div>`}</div>`)}
-  </div><aside>${card(`<div class="card-header"><div><h3>Decision standard</h3><p>Evidence expected at each gate</p></div><span class="checklist-mark">✓</span></div><div class="decision-standard"><div><b>1 · Review</b><span>Scope, impact, window, owner, and rollback.</span></div><div><b>2 · Implement</b><span>Start only within the approved window.</span></div><div><b>3 · Validate</b><span>Record a health check and user-impact result.</span></div><div><b>4 · Recover</b><span>Failed checks require documented rollback.</span></div></div>`)}${card(`<div class="approval-note"><span>ⓘ</span><p><strong>Simulation only.</strong> Approval, validation, and rollback write a browser-local audit trail. They do not trigger infrastructure changes.</p></div>`)}</aside></div>`;
+  </div><aside>${card(`<div class="card-header"><div><h3>Decision standard</h3><p>Evidence expected at each gate</p></div><span class="checklist-mark">✓</span></div><div class="decision-standard"><div><b>1 · Review</b><span>Scope, impact, window, owner, and rollback.</span></div><div><b>2 · Implement</b><span>Start only within the approved window.</span></div><div><b>3 · Validate</b><span>Record a health check and user-impact result.</span></div><div><b>4 · Recover</b><span>Failed checks require documented rollback.</span></div></div>`)}${card(`<div class="approval-note"><span>ⓘ</span><p><strong>Simulation only.</strong> Approval, validation, and rollback write a local SQLite audit trail. They do not trigger infrastructure changes.</p></div>`)}</aside></div>`;
 }
 
 function render() {
@@ -191,6 +363,7 @@ function render() {
   if (currentRoute === "helpdesk") {
     slaTicker = setInterval(refreshTicketSla, 30_000);
   }
+  setPersistenceStatus(persistenceMode);
 }
 function refreshTicketSla() {
   if (currentRoute !== "helpdesk" || document.querySelector(".dialog-root")) return;
@@ -519,8 +692,11 @@ function reset() {
   state = cloneSeed(); networkResult = null; networkInputs = { site: "North campus", symptom: "Slow connection", scope: "Single room" }; save(); render(); toast("Synthetic casebook restored to its starting state.");
 }
 window.addEventListener("hashchange", () => {
+  if (!appReady) return;
   if (currentRoute !== "network") networkResult = null;
   render();
   app.querySelector("h1")?.focus();
 });
-render();
+document.querySelector("#downloadConflict")?.addEventListener("click", downloadConflictBackup);
+document.querySelector("#reloadShared")?.addEventListener("click", useServerCopy);
+initializeApp();
