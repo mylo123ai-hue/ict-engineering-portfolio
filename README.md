@@ -16,6 +16,23 @@ Open <http://127.0.0.1:4173>. The server binds to loopback, serves only applicat
 
 The overview links to each application. For a direct local route, append `#health`, `#security`, `#helpdesk`, `#network`, or `#maintenance` to that address.
 
+## Backing up the casebook
+
+Create a consistent, owner-only SQLite backup outside the repository. The destination must be a new file; the command verifies its integrity and never overwrites an existing backup.
+
+```sh
+python3 scripts/backup_demo_state.py ~/.local/share/northstar-ict-portfolio/casebook-backup.sqlite3
+```
+
+To restore a backup, stop the server first, keep a copy of the current database, copy the backup to the configured database path, and restart the server. For the default path:
+
+```sh
+mv ~/.local/share/northstar-ict-portfolio/demo.sqlite3 ~/.local/share/northstar-ict-portfolio/demo-before-restore.sqlite3
+cp ~/.local/share/northstar-ict-portfolio/casebook-backup.sqlite3 ~/.local/share/northstar-ict-portfolio/demo.sqlite3
+```
+
+If `ICT_PORTFOLIO_DB` points elsewhere, use that path for both commands. These files contain synthetic portfolio data.
+
 ## Viewing from a VPS
 
 With your GitHub SSH key authorized for the private repository, clone the `development` branch on the VPS and run `npm start` there:

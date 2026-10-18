@@ -2,12 +2,15 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 import os
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from scripts.backup_demo_state import backup_database
 from scripts.serve import DemoStateStore, ROOT, create_server, is_allowed_path
 
 
@@ -133,6 +136,28 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/health")[0], 503)
         self.assertEqual(self.request("/api/state")[0], 503)
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": self.valid_casebook()})[0], 503)
+
+    def test_sqlite_backup_is_consistent_private_and_never_overwritten(self):
+        state = self.valid_casebook()
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
+        destination = Path(self.temp_dir.name) / "backups" / "casebook.sqlite3"
+        saved_backup = backup_database(self.db_path, destination)
+        with sqlite3.connect(saved_backup) as db:
+            row = db.execute("SELECT revision, payload FROM demo_state WHERE id = 1").fetchone()
+        self.assertEqual(row, (1, json.dumps(state, separators=(",", ":"), ensure_ascii=False)))
+        if os.name == "posix":
+            self.assertEqual(saved_backup.stat().st_mode & 0o777, 0o600)
+        with self.assertRaises(FileExistsError):
+            backup_database(self.db_path, destination)
+
+        command_destination = Path(self.temp_dir.name) / "backups" / "cli-casebook.sqlite3"
+        environment = {**os.environ, "ICT_PORTFOLIO_DB": str(self.db_path)}
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "backup_demo_state.py"), str(command_destination)],
+            capture_output=True, text=True, env=environment, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Verified synthetic casebook backup", result.stdout)
 
     def test_api_rejects_bad_shapes_and_unknown_routes(self):
         status, error = self.request("/api/state", "PUT", {"revision": 0, "state": {"tickets": []}})
