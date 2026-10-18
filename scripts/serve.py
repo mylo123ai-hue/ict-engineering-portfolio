@@ -7,7 +7,7 @@ import os
 import re
 import sqlite3
 from contextlib import closing
-from datetime import datetime
+from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -17,6 +17,12 @@ ROOT = Path(__file__).resolve().parent.parent
 NOT_FOUND = ROOT / "index.html" / "__preview_not_found__"
 ALLOWED_ROOTS = {"index.html", "src", "docs"}
 MAX_STATE_BYTES = 1_000_000
+MAX_RESTORE_BYTES = 4_096
+HISTORY_LIMIT = 25
+# Revisions cross the API boundary as JavaScript numbers and must remain exact.
+MAX_SAFE_REVISION = (1 << 53) - 1
+MAX_REVISION = MAX_SAFE_REVISION - 1
+SCHEMA_VERSION = 2
 DEFAULT_DB = Path.home() / ".local" / "share" / "northstar-ict-portfolio" / "demo.sqlite3"
 DB_PATH = Path(os.environ.get("ICT_PORTFOLIO_DB", DEFAULT_DB)).expanduser()
 NODE_SIGNALS = {
@@ -25,6 +31,12 @@ NODE_SIGNALS = {
     "db-pri-01": {"connectionUtilization", "storage"},
     "fw-edge-01": {"cpu", "sessionUtilization"},
     "ap-east-14": {"missedHeartbeats", "poeDraw"},
+}
+# Match the health monitor's illustrative threshold callouts for synthetic healthy rows.
+HEALTH_SIGNAL_THRESHOLDS = {
+    "core-sw-01": {"portUtilization": 80, "interfaceErrors": 1},
+    "app-srv-02": {"cpu": 80, "queueDepth": 25},
+    "ap-east-14": {"missedHeartbeats": 3},
 }
 RECOVERY_CHECKS = {
     "core-sw-01": "Interface errors normalized; gateway probe loss returned below threshold",
@@ -39,7 +51,13 @@ def is_record(value):
 
 
 def is_text(value):
-    return isinstance(value, str)
+    if not isinstance(value, str):
+        return False
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 def is_one_of(value, options):
@@ -53,6 +71,112 @@ def is_finite_number(value):
         return math.isfinite(value)
     except OverflowError:
         return False
+
+
+def is_portable_json(value):
+    """Accept JSON values that keep their meaning in both Python and JavaScript."""
+    if value is None or isinstance(value, bool):
+        return True
+    if isinstance(value, str):
+        return is_text(value)
+    if type(value) is int:
+        return -MAX_SAFE_REVISION <= value <= MAX_SAFE_REVISION
+    if type(value) is float:
+        return math.isfinite(value)
+    if isinstance(value, list):
+        return all(is_portable_json(item) for item in value)
+    if isinstance(value, dict):
+        return all(is_text(key) and is_portable_json(item) for key, item in value.items())
+    return False
+
+
+def valid_stored_revision(value):
+    return type(value) is int and 0 <= value <= MAX_SAFE_REVISION
+
+
+def parse_json(data):
+    """Parse JSON while rejecting duplicate keys that different consumers may interpret differently."""
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate JSON object key")
+            result[key] = value
+        return result
+
+    if isinstance(data, bytes):
+        # JSON exchanged between systems is UTF-8; accepting UTF-16/32 byte
+        # payloads here would disagree with the API's declared media type.
+        data = data.decode("utf-8")
+    return json.loads(data, object_pairs_hook=unique_object)
+
+
+def validate_history_row(row):
+    """Decode one retained snapshot only when its revision metadata is coherent."""
+    revision = row["revision"]
+    created_at = row["created_at"]
+    restored_from = row["restored_from"]
+    if type(revision) is not int or not 0 < revision <= MAX_SAFE_REVISION:
+        raise ValueError("Stored history revision is invalid")
+    if not is_text(created_at) or len(created_at) > 64:
+        raise ValueError("Stored history timestamp is invalid")
+    try:
+        timestamp = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError("Stored history timestamp is invalid") from error
+    if timestamp.tzinfo is None or timestamp.utcoffset() != timezone.utc.utcoffset(timestamp):
+        raise ValueError("Stored history timestamp must be UTC")
+    if restored_from is not None and (
+        type(restored_from) is not int or not 0 < restored_from < revision
+    ):
+        raise ValueError("Stored history restore lineage is invalid")
+    payload = row["payload"]
+    if not is_text(payload):
+        raise ValueError("Stored history payload is not valid UTF-8 text")
+    if len(payload.encode("utf-8")) > MAX_STATE_BYTES:
+        raise ValueError("Stored history payload exceeds the state size limit")
+    state = parse_json(payload)
+    if not valid_state_shape(state):
+        raise ValueError("Stored revision failed validation")
+    return {"state": state, "revision": revision}
+
+
+def validate_history_rows(rows):
+    """Validate the bounded, ascending revision window and return decoded records."""
+    if len(rows) > HISTORY_LIMIT:
+        raise ValueError("Stored history exceeds the configured retention limit")
+    snapshots = []
+    previous_revision = 0
+    for row in rows:
+        snapshot = validate_history_row(row)
+        if snapshot["revision"] <= previous_revision:
+            raise ValueError("Stored history revisions are not strictly ascending")
+        if previous_revision and snapshot["revision"] != previous_revision + 1:
+            raise ValueError("Stored history contains a missing revision")
+        previous_revision = snapshot["revision"]
+        snapshots.append(snapshot)
+    return snapshots
+
+
+def read_validated_history(db):
+    """Read one consistent head/history view and verify their relationship."""
+    schema_version = db.execute("PRAGMA user_version").fetchone()[0]
+    if schema_version != SCHEMA_VERSION:
+        raise ValueError("Unsupported SQLite casebook schema")
+    current = db.execute("SELECT revision, payload FROM demo_state WHERE id = 1").fetchone()
+    rows = db.execute(
+        "SELECT revision, created_at, payload, restored_from FROM demo_state_history ORDER BY revision"
+    ).fetchall()
+    snapshots = validate_history_rows(rows)
+    if current is None:
+        if rows:
+            raise ValueError("History exists without an active casebook")
+        return current, rows, snapshots
+    if not valid_stored_revision(current["revision"]) or current["revision"] == 0:
+        raise ValueError("Stored casebook revision is invalid")
+    if not rows or rows[-1]["revision"] != current["revision"] or rows[-1]["payload"] != current["payload"]:
+        raise ValueError("Active casebook does not match its history record")
+    return current, rows, snapshots
 
 
 def valid_node(node):
@@ -70,6 +194,10 @@ def valid_node(node):
         return False
     if not all(is_finite_number(signals[key]) and signals[key] >= 0 for key in NODE_SIGNALS[node["id"]]):
         return False
+    if node["health"] == "Healthy" and any(
+        signals[key] > threshold for key, threshold in HEALTH_SIGNAL_THRESHOLDS.get(node["id"], {}).items()
+    ):
+        return False
     investigation = node.get("investigation")
     if investigation is None:
         return True
@@ -83,11 +211,13 @@ def valid_node(node):
         and is_text(investigation.get("notes"))
         and len(investigation["notes"].strip()) >= 8
     )
-    return investigation["status"] != "Resolved" or valid_resolution
+    if investigation["status"] == "Investigating":
+        return node["health"] != "Healthy"
+    return valid_resolution and node["health"] == "Healthy"
 
 
 def valid_finding(finding):
-    if not is_record(finding) or not isinstance(finding.get("id"), str) or not re.fullmatch(r"SEC-\d+", finding["id"]):
+    if not is_record(finding) or not isinstance(finding.get("id"), str) or not re.fullmatch(r"SEC-[0-9]+", finding["id"]):
         return False
     if not all(is_text(finding.get(key)) for key in ("title", "asset", "owner", "responsePlan", "resolution")):
         return False
@@ -104,7 +234,7 @@ def valid_finding(finding):
 
 
 def valid_ticket(ticket):
-    if not is_record(ticket) or not isinstance(ticket.get("id"), str) or not re.fullmatch(r"HD-\d+", ticket["id"]):
+    if not is_record(ticket) or not isinstance(ticket.get("id"), str) or not re.fullmatch(r"HD-[0-9]+", ticket["id"]):
         return False
     if not all(is_text(ticket.get(key)) for key in ("subject", "requester", "assignee")):
         return False
@@ -126,13 +256,21 @@ def valid_ticket(ticket):
             return False
     if not isinstance(ticket.get("updates"), list) or not all(is_text(update) for update in ticket["updates"]):
         return False
-    if ticket["status"] != "New" and (not ticket["assignee"].strip() or ticket["assignee"] == "Unassigned"):
+    if ticket["status"] == "New" and first_response is not None:
         return False
+    if ticket["status"] != "New":
+        if (
+            not ticket["assignee"].strip()
+            or ticket["assignee"] == "Unassigned"
+            or first_response is None
+            or not any(len(update.strip()) >= 8 for update in ticket["updates"])
+        ):
+            return False
     return ticket["status"] != "Resolved" or any("requester/service recovery confirmed" in update for update in ticket["updates"])
 
 
 def valid_change(change):
-    if not is_record(change) or not isinstance(change.get("id"), str) or not re.fullmatch(r"CHG-\d+", change["id"]):
+    if not is_record(change) or not isinstance(change.get("id"), str) or not re.fullmatch(r"CHG-[0-9]+", change["id"]):
         return False
     if not all(is_text(change.get(key)) for key in ("title", "owner")) or not change["owner"].strip() or change["owner"] == "Unassigned":
         return False
@@ -145,22 +283,48 @@ def valid_change(change):
         return False
     if not isinstance(history, list) or not all(is_text(entry) for entry in history):
         return False
+    def has_recorded_decision(marker):
+        return any(
+            marker in entry and len(entry.rsplit(" · ", 1)[-1].strip()) >= 12
+            for entry in history
+        )
+
+    def has_independent_peer_review():
+        for entry in history:
+            if "Peer review by " not in entry:
+                continue
+            reviewer = entry.split("Peer review by ", 1)[1].split(" · ", 1)[0].strip()
+            if reviewer and reviewer.casefold() != change["owner"].strip().casefold():
+                return True
+        return False
+
     ready_statuses = {"Approved", "In progress", "Completed", "Rollback required", "Rolled back"}
     if change["status"] in ready_statuses and not all(readiness[key] for key in READINESS_KEYS):
         return False
-    if change["status"] in ready_statuses and change["risk"] == "High" and (readiness.get("peerReview") is not True or not any("Peer review by " in entry for entry in history)):
+    if change["status"] in ready_statuses and change["risk"] == "High" and (readiness.get("peerReview") is not True or not has_independent_peer_review()):
+        return False
+    if change["status"] in ready_statuses and not has_recorded_decision("Approved by "):
+        return False
+    if change["status"] == "Rejected" and not has_recorded_decision("Rejected by "):
         return False
     if change["status"] in {"In progress", "Completed", "Rollback required", "Rolled back"}:
         evidence = change.get("preChangeEvidence")
         if not is_text(evidence) or len(evidence.strip()) < 12:
             return False
+        if not has_recorded_decision("Implementation started in approved window"):
+            return False
     if change["status"] in {"Completed", "Rollback required"}:
         evidence = change.get("validationEvidence")
         if not is_text(evidence) or len(evidence.strip()) < 12:
             return False
+        outcome = "Validation passed" if change["status"] == "Completed" else "Validation failed"
+        if not has_recorded_decision(outcome):
+            return False
     if change["status"] == "Rolled back":
         evidence = change.get("rollbackEvidence")
         if not is_text(evidence) or len(evidence.strip()) < 12:
+            return False
+        if not has_recorded_decision("Rollback executed"):
             return False
     return True
 
@@ -177,13 +341,13 @@ def is_allowed_path(path):
 
 
 def valid_state_shape(state):
-    """Bound request size and enforce core casebook domain invariants server-side."""
+    """Enforce core casebook domain invariants server-side."""
     if not isinstance(state, dict) or set(state) != {"nodes", "findings", "tickets", "maintenance", "events"}:
         return False
     limits = {"nodes": 32, "findings": 500, "tickets": 500, "maintenance": 300, "events": 100}
     if not all(isinstance(state[key], list) and len(state[key]) <= limit for key, limit in limits.items()):
         return False
-    if not all(isinstance(event, str) for event in state["events"]):
+    if not all(is_text(event) for event in state["events"]):
         return False
     validators = {"nodes": valid_node, "findings": valid_finding, "tickets": valid_ticket, "maintenance": valid_change}
     if len(state["nodes"]) != len(NODE_SIGNALS):
@@ -195,30 +359,78 @@ def valid_state_shape(state):
         ids = [record["id"] for record in records]
         if len(set(ids)) != len(ids):
             return False
-    return {node["id"] for node in state["nodes"]} == set(NODE_SIGNALS)
+    if {node["id"] for node in state["nodes"]} != set(NODE_SIGNALS):
+        return False
+    finding_ids = {finding["id"] for finding in state["findings"]}
+    for ticket in state["tickets"]:
+        if "relatedAssetId" in ticket and (
+            not is_text(ticket["relatedAssetId"])
+            or (ticket["relatedAssetId"] and ticket["relatedAssetId"] not in NODE_SIGNALS)
+        ):
+            return False
+    for change in state["maintenance"]:
+        if "findingId" in change and (
+            not is_text(change["findingId"])
+            or (change["findingId"] and change["findingId"] not in finding_ids)
+        ):
+            return False
+    # Unknown extension fields must still be valid portable UTF-8 JSON; otherwise
+    # persisted state could pass domain checks but fail while encoding an API reply.
+    try:
+        if not is_portable_json(state):
+            return False
+        json.dumps(state, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
+    except (TypeError, ValueError, UnicodeEncodeError, RecursionError, OverflowError):
+        return False
+    return True
 
 
 class DemoStateStore:
-    """One versioned synthetic casebook snapshot stored in SQLite."""
+    """Versioned synthetic casebook snapshots stored in SQLite."""
 
     def __init__(self, path):
         self.path = Path(path).expanduser().resolve()
         if self.path == ROOT or ROOT in self.path.parents:
             raise ValueError("SQLite casebook storage must be outside the repository")
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if self.path.exists() and not self.path.is_file():
+            raise ValueError("SQLite casebook path must name a regular file")
         if not self.path.exists():
             try:
                 descriptor = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
                 os.close(descriptor)
             except FileExistsError:
                 pass
+        if not self.path.is_file():
+            raise ValueError("SQLite casebook path must name a regular file")
         try:
             self.path.chmod(0o600)
         except OSError:
-            pass
+            if os.name == "posix":
+                raise
         with closing(self._connect()) as db:
             with db:
+                schema_version = db.execute("PRAGMA user_version").fetchone()[0]
+                if schema_version > SCHEMA_VERSION:
+                    raise RuntimeError(f"SQLite casebook schema {schema_version} is newer than supported version {SCHEMA_VERSION}")
                 db.execute("CREATE TABLE IF NOT EXISTS demo_state (id INTEGER PRIMARY KEY CHECK (id = 1), revision INTEGER NOT NULL, payload TEXT NOT NULL)")
+                db.execute(
+                    "CREATE TABLE IF NOT EXISTS demo_state_history ("
+                    "revision INTEGER PRIMARY KEY, created_at TEXT NOT NULL, payload TEXT NOT NULL, restored_from INTEGER)"
+                )
+                # Preserve the current snapshot when upgrading a pre-history database.
+                current = db.execute("SELECT revision, payload FROM demo_state WHERE id = 1").fetchone()
+                if current:
+                    db.execute(
+                        "INSERT OR IGNORE INTO demo_state_history (revision, created_at, payload) VALUES (?, ?, ?)",
+                        (current["revision"], datetime.now(timezone.utc).isoformat(), current["payload"]),
+                    )
+                db.execute(
+                    "DELETE FROM demo_state_history WHERE revision NOT IN "
+                    "(SELECT revision FROM demo_state_history ORDER BY revision DESC LIMIT ?)",
+                    (HISTORY_LIMIT,),
+                )
+                db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def _connect(self):
         db = sqlite3.connect(self.path, timeout=5)
@@ -227,33 +439,192 @@ class DemoStateStore:
 
     def read(self):
         with closing(self._connect()) as db:
-            row = db.execute("SELECT revision, payload FROM demo_state WHERE id = 1").fetchone()
-        if row is None:
+            db.execute("BEGIN")
+            current, _, snapshots = read_validated_history(db)
+        if current is None:
             return {"state": None, "revision": 0}
-        return {"state": json.loads(row["payload"]), "revision": row["revision"]}
+        return snapshots[-1]
+
+    def read_history(self, revision):
+        if type(revision) is not int or not 0 < revision <= MAX_SAFE_REVISION:
+            raise ValueError("History revision is outside the supported range")
+        with closing(self._connect()) as db:
+            db.execute("BEGIN")
+            _, rows, snapshots = read_validated_history(db)
+        index = next((index for index, row in enumerate(rows) if row["revision"] == revision), None)
+        if index is None:
+            return None
+        return snapshots[index]
+
+    def history(self):
+        with closing(self._connect()) as db:
+            db.execute("BEGIN")
+            _, rows, snapshots = read_validated_history(db)
+        history = []
+        for row, snapshot in reversed(list(zip(rows, snapshots))):
+            state = snapshot["state"]
+            history.append({
+                "revision": snapshot["revision"],
+                "createdAt": row["created_at"],
+                "restoredFrom": row["restored_from"],
+                "counts": {key: len(state[key]) for key in ("nodes", "findings", "tickets", "maintenance", "events")},
+            })
+        return history
+
+    def health(self):
+        with closing(self._connect()) as db:
+            db.execute("BEGIN")
+            schema_version = db.execute("PRAGMA user_version").fetchone()[0]
+            current, rows, snapshots = read_validated_history(db)
+            history_count = len(rows)
+        snapshot = snapshots[-1] if current is not None else {"state": None, "revision": 0}
+        if schema_version != SCHEMA_VERSION:
+            raise sqlite3.DatabaseError("Unsupported SQLite casebook schema")
+        return {
+            "ok": True,
+            "storage": "sqlite",
+            "revision": snapshot["revision"],
+            "schemaVersion": schema_version,
+            "historyCount": history_count,
+            "historyLimit": HISTORY_LIMIT,
+        }
 
     def write(self, expected_revision, state):
+        if type(expected_revision) is not int or not 0 <= expected_revision <= MAX_REVISION:
+            raise ValueError("Expected revision is outside the supported range")
+        if not valid_state_shape(state):
+            raise ValueError("Casebook state failed validation")
         payload = json.dumps(state, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+        if len(payload.encode("utf-8")) > MAX_STATE_BYTES:
+            raise ValueError("Casebook state exceeds the supported storage size")
         with closing(self._connect()) as db:
             with db:
                 db.execute("BEGIN IMMEDIATE")
-                row = db.execute("SELECT revision FROM demo_state WHERE id = 1").fetchone()
-                current = row["revision"] if row else 0
+                try:
+                    current_row, _, _ = read_validated_history(db)
+                except (ValueError, TypeError, RecursionError) as error:
+                    raise sqlite3.DatabaseError("Stored history failed validation") from error
+                current = current_row["revision"] if current_row is not None else 0
                 if current != expected_revision:
                     db.rollback()
                     return None
                 revision = current + 1
-                db.execute(
-                    "INSERT INTO demo_state (id, revision, payload) VALUES (1, ?, ?) "
-                    "ON CONFLICT(id) DO UPDATE SET revision = excluded.revision, payload = excluded.payload",
-                    (revision, payload),
-                )
+                self._store_revision(db, revision, payload)
         return revision
+
+    @staticmethod
+    def _store_revision(db, revision, payload, restored_from=None):
+        if restored_from is not None and (
+            type(restored_from) is not int or not 0 < restored_from < revision
+        ):
+            raise ValueError("Restore lineage is outside the supported range")
+        db.execute(
+            "INSERT INTO demo_state (id, revision, payload) VALUES (1, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET revision = excluded.revision, payload = excluded.payload",
+            (revision, payload),
+        )
+        db.execute(
+            "INSERT INTO demo_state_history (revision, created_at, payload, restored_from) VALUES (?, ?, ?, ?)",
+            (revision, datetime.now(timezone.utc).isoformat(), payload, restored_from),
+        )
+        db.execute(
+            "DELETE FROM demo_state_history WHERE revision NOT IN "
+            "(SELECT revision FROM demo_state_history ORDER BY revision DESC LIMIT ?)",
+            (HISTORY_LIMIT,),
+        )
+
+    def restore(self, expected_revision, source_revision):
+        """Restore a retained snapshot as a new revision; never move the head backwards."""
+        if type(expected_revision) is not int or not 0 <= expected_revision <= MAX_REVISION:
+            raise ValueError("Expected revision is outside the supported range")
+        if type(source_revision) is not int or not 0 < source_revision <= MAX_SAFE_REVISION:
+            raise ValueError("Source revision is outside the supported range")
+        with closing(self._connect()) as db:
+            with db:
+                db.execute("BEGIN IMMEDIATE")
+                try:
+                    current_row, history_rows, history_snapshots = read_validated_history(db)
+                except (ValueError, TypeError, RecursionError) as error:
+                    raise sqlite3.DatabaseError("Stored history failed validation") from error
+                current_revision = current_row["revision"] if current_row is not None else 0
+                if current_revision != expected_revision:
+                    db.rollback()
+                    return None, None, "conflict"
+                source_index = next(
+                    (index for index, row in enumerate(history_rows) if row["revision"] == source_revision), None,
+                )
+                if source_index is None:
+                    db.rollback()
+                    return None, None, "missing"
+                source = history_snapshots[source_index]
+                revision = current_revision + 1
+                payload = json.dumps(source["state"], separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+                self._store_revision(db, revision, payload, restored_from=source_revision)
+        return revision, source["state"], None
 
 
 class PortfolioHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
+
+    def parse_request(self):
+        if not super().parse_request():
+            return False
+        # Keep HTTP/1.0 clients usable; modern browsers send Host.
+        host = self.headers.get("Host")
+        if host is None and self.request_version == "HTTP/1.1":
+            self.close_connection = True
+            self.send_error(400, "Missing Host header")
+            return False
+        if host is not None:
+            parsed_host = None
+            try:
+                parsed_host = urlsplit(f"//{host}")
+                hostname = (parsed_host.hostname or "").lower()
+                port = parsed_host.port
+            except ValueError:
+                hostname, port = "", None
+            allowed_hosts = {"127.0.0.1", "localhost"}
+            if (
+                hostname not in allowed_hosts
+                or port not in (None, self.server.server_port)
+                or parsed_host is None
+                or parsed_host.path != ""
+                or parsed_host.query != ""
+                or parsed_host.fragment != ""
+                or parsed_host.username is not None
+                or parsed_host.password is not None
+            ):
+                self.close_connection = True
+                self.send_error(421, "Unexpected Host header")
+                return False
+
+        host_headers = self.headers.get_all("Host", [])
+        transfer_encodings = self.headers.get_all("Transfer-Encoding", [])
+        content_lengths = self.headers.get_all("Content-Length", [])
+        content_types = self.headers.get_all("Content-Type", [])
+        if transfer_encodings or len(content_lengths) > 1 or len(host_headers) > 1 or len(content_types) > 1:
+            self.close_connection = True
+            self.send_error(400, "Ambiguous request headers")
+            return False
+        if content_lengths and not re.fullmatch(r"[0-9]+", content_lengths[0].strip()):
+            self.close_connection = True
+            self.send_error(400, "Invalid content length")
+            return False
+        if self.command in {"GET", "HEAD"} and content_lengths:
+            try:
+                has_body = int(content_lengths[0].strip()) != 0
+            except ValueError:
+                self.close_connection = True
+                self.send_error(400, "Invalid content length")
+                return False
+            if has_body:
+                self.close_connection = True
+                self.send_error(400, "GET and HEAD requests cannot contain a body")
+                return False
+        if self.command not in {"GET", "HEAD", "POST", "PUT"}:
+            self.close_connection = True
+        return True
 
     def translate_path(self, path):
         candidate = Path(super().translate_path(path)).resolve()
@@ -263,14 +634,37 @@ class PortfolioHandler(SimpleHTTPRequestHandler):
         self.send_error(404, "Directory listing is disabled")
         return None
 
+    def copyfile(self, source, outputfile):
+        try:
+            super().copyfile(source, outputfile)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.close_connection = True
+
     def _send_json(self, status, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            if self.close_connection:
+                self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.close_connection = True
+
+    def end_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; "
+            "form-action 'self'; frame-ancestors 'none'",
+        )
+        super().end_headers()
 
     def _api_path(self):
         return urlsplit(self.path).path
@@ -278,16 +672,39 @@ class PortfolioHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self._api_path() == "/api/health":
             try:
-                revision = self.server.store.read()["revision"]
-            except (sqlite3.Error, json.JSONDecodeError):
+                health = self.server.store.health()
+            except (sqlite3.Error, ValueError, RecursionError, TypeError, KeyError):
                 self._send_json(503, {"ok": False, "error": "SQLite storage unavailable"})
                 return
-            self._send_json(200, {"ok": True, "storage": "sqlite", "revision": revision})
+            self._send_json(200, health)
         elif self._api_path() == "/api/state":
             try:
                 self._send_json(200, self.server.store.read())
-            except (sqlite3.Error, json.JSONDecodeError):
+            except (sqlite3.Error, ValueError, RecursionError, TypeError):
                 self._send_json(503, {"error": "SQLite storage unavailable"})
+        elif self._api_path() == "/api/history":
+            try:
+                self._send_json(200, {"revisions": self.server.store.history(), "limit": HISTORY_LIMIT})
+            except (sqlite3.Error, ValueError, RecursionError, KeyError, TypeError):
+                self._send_json(503, {"error": "SQLite history unavailable"})
+        elif re.fullmatch(r"/api/history/[0-9]+", self._api_path()):
+            revision_text = self._api_path().rsplit("/", 1)[1]
+            if len(revision_text) > 16:
+                self._send_json(404, {"error": "Revision not retained"})
+                return
+            revision = int(revision_text)
+            if not 0 < revision <= MAX_SAFE_REVISION:
+                self._send_json(404, {"error": "Revision not retained"})
+                return
+            try:
+                snapshot = self.server.store.read_history(revision)
+            except (sqlite3.Error, ValueError, RecursionError):
+                self._send_json(503, {"error": "SQLite history unavailable"})
+                return
+            if snapshot is None:
+                self._send_json(404, {"error": "Revision not retained"})
+            else:
+                self._send_json(200, snapshot)
         elif self._api_path().startswith("/api/"):
             self._send_json(404, {"error": "Not found"})
         else:
@@ -295,45 +712,119 @@ class PortfolioHandler(SimpleHTTPRequestHandler):
 
     def do_PUT(self):
         if self._api_path() != "/api/state":
+            self.close_connection = True
             self._send_json(404, {"error": "Not found"})
             return
         if self.headers.get_content_type() != "application/json":
+            self.close_connection = True
             self._send_json(415, {"error": "Expected application/json"})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
+            self.close_connection = True
             self._send_json(400, {"error": "Invalid content length"})
             return
         if length <= 0 or length > MAX_STATE_BYTES:
+            self.close_connection = True
             self._send_json(413 if length > MAX_STATE_BYTES else 400, {"error": "Invalid state payload size"})
             return
         try:
-            request = json.loads(self.rfile.read(length))
-        except (json.JSONDecodeError, UnicodeDecodeError, RecursionError):
+            request = parse_json(self.rfile.read(length))
+        except (ValueError, UnicodeDecodeError, RecursionError):
             self._send_json(400, {"error": "Invalid JSON"})
             return
-        if not isinstance(request, dict) or type(request.get("revision")) is not int or request["revision"] < 0 or not valid_state_shape(request.get("state")):
+        if (
+            not isinstance(request, dict)
+            or type(request.get("revision")) is not int
+            or not 0 <= request["revision"] <= MAX_REVISION
+        ):
             self._send_json(422, {"error": "Invalid casebook state"})
             return
         try:
             revision = self.server.store.write(request["revision"], request["state"])
         except (ValueError, TypeError, RecursionError):
-            self._send_json(422, {"error": "State contains unsupported JSON values"})
+            self._send_json(422, {"error": "Invalid casebook state or unsupported JSON values"})
             return
         except sqlite3.Error:
             self._send_json(503, {"error": "SQLite storage unavailable"})
             return
         if revision is None:
-            current = self.server.store.read()
+            try:
+                current = self.server.store.read()
+            except (sqlite3.Error, ValueError, RecursionError):
+                self._send_json(503, {"error": "SQLite storage unavailable"})
+                return
             self._send_json(409, {"error": "State changed in another session", **current})
             return
         self._send_json(200, {"state": request["state"], "revision": revision})
 
+    def do_POST(self):
+        if self._api_path() != "/api/restore":
+            self.close_connection = True
+            self._send_json(404, {"error": "Not found"})
+            return
+        if self.headers.get_content_type() != "application/json":
+            self.close_connection = True
+            self._send_json(415, {"error": "Expected application/json"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self.close_connection = True
+            self._send_json(400, {"error": "Invalid content length"})
+            return
+        if length <= 0 or length > MAX_RESTORE_BYTES:
+            self.close_connection = True
+            self._send_json(413 if length > MAX_RESTORE_BYTES else 400, {"error": "Invalid restore request size"})
+            return
+        try:
+            request = parse_json(self.rfile.read(length))
+        except (ValueError, UnicodeDecodeError, RecursionError):
+            self._send_json(400, {"error": "Invalid JSON"})
+            return
+        if (
+            not isinstance(request, dict)
+            or type(request.get("revision")) is not int or not 0 <= request["revision"] <= MAX_REVISION
+            or type(request.get("sourceRevision")) is not int
+            or not 0 < request["sourceRevision"] <= MAX_SAFE_REVISION
+        ):
+            self._send_json(422, {"error": "Expected non-negative current revision and positive sourceRevision"})
+            return
+        try:
+            revision, restored_state, error = self.server.store.restore(request["revision"], request["sourceRevision"])
+        except (sqlite3.Error, ValueError, RecursionError):
+            self._send_json(503, {"error": "SQLite storage unavailable"})
+            return
+        if error == "missing":
+            self._send_json(404, {"error": "Revision not retained"})
+            return
+        if error == "conflict":
+            try:
+                current = self.server.store.read()
+            except (sqlite3.Error, ValueError, RecursionError):
+                self._send_json(503, {"error": "SQLite storage unavailable"})
+                return
+            self._send_json(409, {"error": "State changed in another session", **current})
+            return
+        self._send_json(200, {"state": restored_state, "revision": revision, "restoredFrom": request["sourceRevision"]})
+
+
+class PortfolioHTTPServer(ThreadingHTTPServer):
+    """Allow short local request bursts to reach the threaded handler pool."""
+
+    request_queue_size = 64
+
 
 def create_server(host="127.0.0.1", port=4173, db_path=DB_PATH):
-    server = ThreadingHTTPServer((host, port), PortfolioHandler)
-    server.store = DemoStateStore(db_path)
+    if host != "127.0.0.1":
+        raise ValueError("The portfolio preview server must bind to 127.0.0.1")
+    server = PortfolioHTTPServer((host, port), PortfolioHandler)
+    try:
+        server.store = DemoStateStore(db_path)
+    except Exception:
+        server.server_close()
+        raise
     return server
 
 

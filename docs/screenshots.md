@@ -24,6 +24,10 @@ This local capture shows the persistence status after the synthetic casebook was
 
 ![Homepage connected to the local SQLite casebook](homepage-backend.jpg)
 
+The current backend-cycle browser pass opened the portfolio through the documented `localhost` host, confirmed SQLite status, and checked all five application routes at desktop and mobile widths.
+
+![Current backend-cycle browser verification](homepage-backend-cycle.png)
+
 ## Application views
 
 - [Infrastructure Health Monitor](apps/health.jpg)

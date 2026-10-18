@@ -62,6 +62,18 @@ These are fictional scenarios built from synthetic data. The UI records simulate
 
 **Lesson demonstrated.** Change approval is an explicit risk decision, and a rehearsable recovery path is part of the change rather than an afterthought.
 
+## Backend case study — recoverable casebook API
+
+**Problem.** The five scenarios shared a browser casebook and a local SQLite snapshot, but an accepted bad change could only be undone by browser-local recovery or a manual database backup restore.
+
+**Investigation.** Keep the service dependency-free and loopback-only, preserve revision compare-and-swap behavior, inspect the existing SQLite schema, and test upgrades from a database created before revision history existed.
+
+**Decision and trade-off.** Each accepted write stores the live snapshot and its history record in one SQLite transaction. The service retains 25 snapshots, adds UTC timestamps and restore lineage, and offers a restore API that requires the caller's expected current revision. Restore reads the source, compares the head, writes the new revision, and prunes history in one transaction. Both normal writes and restores keep the old head if the history insert fails. Restores create a new revision rather than moving the head backwards. Existing databases seed history from their current snapshot; revisions from before the upgrade cannot be reconstructed. State validation checks that the monitored health, the dashboard's illustrative signal thresholds, and investigation status agree, and that ticket asset and change-to-finding handoffs target existing casebook records. Worked tickets need an assigned owner, a recorded first-response time, and a meaningful update. Change approval, rejection, implementation start, validation, and rollback must have matching evidence in the decision trail; high-risk approval also verifies that the peer reviewer differs from the owner. A same-origin Content Security Policy and framing/MIME headers constrain the browser surface; the local handler accepts only loopback Host names and rejects ambiguous request headers and framing to reduce browser-origin and request-smuggling exposure. Duplicate JSON keys and unsupported numeric or Unicode values are rejected. Every API operation checks that retained revisions are consecutive and that the newest record matches the active snapshot; the backup utility verifies SQLite and the same logical relationship before atomically publishing a new backup without overwriting an existing file. This gives a bounded recovery window without adding a database service or claiming an immutable audit log. History is local and can be altered by an operator with file access.
+
+**Verification.** Standard-library tests cover migration, retention, history queries, restore, stale-writer conflicts, corrupted-history rejection, logically inconsistent backup rejection, malformed request framing, and rollback when either a write or restore history insert fails. A local browser check exercised the API round trip on an isolated synthetic database and verified the UI routes at four viewport widths.
+
+**Lesson demonstrated.** Recovery operations should be concurrency-aware, leave a traceable new state, and fail closed when the source snapshot cannot pass domain validation.
+
 ## Scope and interpretation
 
 The portfolio demonstrates reasoning, workflow design and state validation in a small static application. It does not demonstrate live monitoring, vulnerability scanning, network probing, identity controls, service-desk integrations, production change execution or certification against a particular framework.

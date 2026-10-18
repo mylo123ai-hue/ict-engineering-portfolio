@@ -646,7 +646,7 @@ function bindPageEvents() {
       const change = state.maintenance.find(item => item.id === id); if (change) openRollback(change);
     }
   };
-  app.addEventListener("change", event => {
+  app.onchange = event => {
     const input = event.target.closest('[data-action="change-check"]');
     if (!input) return;
     const change = state.maintenance.find(item => item.id === input.dataset.id);
@@ -658,7 +658,7 @@ function bindPageEvents() {
     if (!save()) toast("Readiness updated only for this session.");
     render();
     [...document.querySelectorAll('[data-action="change-check"]')].find(item => item.dataset.id === changedId && item.dataset.key === changedKey)?.focus();
-  });
+  };
   const diagnosticForm = document.querySelector("#diagnosticForm");
   if (diagnosticForm) {
     diagnosticForm.addEventListener("change", () => {
