@@ -18,6 +18,12 @@ The older images are the repository baseline. They show a “live workspace” o
 | --- | --- |
 | ![Baseline mobile homepage](homepage-mobile.jpg) | ![Current mobile homepage](homepage-mobile-v3.jpg) |
 
+## Current backend-connected view
+
+This local capture shows the persistence status after the synthetic casebook was saved to SQLite. It is not a public or VPS deployment.
+
+![Homepage connected to the local SQLite casebook](homepage-backend.jpg)
+
 ## Application views
 
 - [Infrastructure Health Monitor](apps/health.jpg)
