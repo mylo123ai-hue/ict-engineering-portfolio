@@ -27,7 +27,7 @@ python3 scripts/backup_demo_state.py ~/.local/share/northstar-ict-portfolio/case
 To restore a backup, stop the server first, keep a copy of the current database, copy the backup to the configured database path, and restart the server. For the default path:
 
 ```sh
-mv ~/.local/share/northstar-ict-portfolio/demo.sqlite3 ~/.local/share/northstar-ict-portfolio/demo-before-restore.sqlite3
+mv ~/.local/share/northstar-ict-portfolio/demo.sqlite3 ~/.local/share/northstar-ict-portfolio/demo-before-restore-$(date -u +%Y%m%dT%H%M%SZ).sqlite3
 cp ~/.local/share/northstar-ict-portfolio/casebook-backup.sqlite3 ~/.local/share/northstar-ict-portfolio/demo.sqlite3
 ```
 

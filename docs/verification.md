@@ -6,7 +6,7 @@ The starting point for the portfolio was a static vanilla JavaScript single-page
 
 ## Automated checks
 
-- `npm test` — 16 Node model tests and 2 Python standard-library preview-scope tests pass.
+- `npm test` — 16 Node model tests and 13 Python standard-library API/preview tests pass.
 - `npm run check` — syntax checks for `src/app.js` and `src/model.js` pass without extra dependencies.
 - `node --test --experimental-test-coverage` — model has 100% line coverage and 91.82% branch coverage in the most recent recorded run.
 - Tests cover malformed, duplicate-ID, unsupported-asset, and incomplete persisted state; migration of the saved database and firewall utilization signals; SLA calculation and first-response recording on ticket ownership; assigned ticket transitions and verified resolution; security ownership and closure evidence; incident cause/action and recovery evidence; network fault domains across all 64 combinations of the four selectable sites, four symptoms, and four impact scopes; change readiness; independent peer review; and the written-evidence gates for approval, rejection, implementation start, validation, and rollback.
