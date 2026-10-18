@@ -310,7 +310,7 @@ class PortfolioHandler(SimpleHTTPRequestHandler):
             return
         try:
             request = json.loads(self.rfile.read(length))
-        except (json.JSONDecodeError, UnicodeDecodeError):
+        except (json.JSONDecodeError, UnicodeDecodeError, RecursionError):
             self._send_json(400, {"error": "Invalid JSON"})
             return
         if not isinstance(request, dict) or type(request.get("revision")) is not int or request["revision"] < 0 or not valid_state_shape(request.get("state")):
@@ -318,7 +318,7 @@ class PortfolioHandler(SimpleHTTPRequestHandler):
             return
         try:
             revision = self.server.store.write(request["revision"], request["state"])
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, RecursionError):
             self._send_json(422, {"error": "State contains unsupported JSON values"})
             return
         except sqlite3.Error:

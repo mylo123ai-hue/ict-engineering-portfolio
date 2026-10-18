@@ -188,6 +188,46 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/not-real")[0], 404)
         self.assertEqual(self.request("/.git/config")[0], 404)
 
+    def test_api_rejects_malformed_nested_json_types(self):
+        cases = []
+        invalid_node_id = self.valid_casebook()
+        invalid_node_id["nodes"][0]["id"] = {"unexpected": "object"}
+        cases.append(invalid_node_id)
+        invalid_health = self.valid_casebook()
+        invalid_health["nodes"][0]["health"] = []
+        cases.append(invalid_health)
+        invalid_signal = self.valid_casebook()
+        invalid_signal["nodes"][0]["signals"]["portUtilization"] = []
+        cases.append(invalid_signal)
+        invalid_finding = self.valid_casebook()
+        invalid_finding["findings"].append({
+            "id": "SEC-1", "title": "Synthetic", "asset": "app-srv-02", "owner": "Unassigned",
+            "responsePlan": "", "resolution": "", "status": [], "severity": "Low", "cvss": 1.0,
+        })
+        cases.append(invalid_finding)
+        invalid_ticket = self.valid_casebook()
+        invalid_ticket["tickets"].append({
+            "id": "HD-1", "subject": "Synthetic", "requester": "Tester", "assignee": "Unassigned",
+            "category": {}, "priority": "Normal", "status": "New", "ageMinutes": 0,
+            "firstResponseMinutes": None, "updates": [],
+        })
+        cases.append(invalid_ticket)
+        invalid_change = self.valid_casebook()
+        invalid_change["maintenance"].append({
+            "id": "CHG-1", "title": "Synthetic", "owner": "R. Patel", "risk": "Low",
+            "status": "Pending approval", "readiness": [], "history": [],
+        })
+        cases.append(invalid_change)
+        invalid_events = self.valid_casebook()
+        invalid_events["events"] = [{}]
+        cases.append(invalid_events)
+
+        for index, case in enumerate(cases):
+            with self.subTest(case=index):
+                status, error = self.request("/api/state", "PUT", {"revision": 0, "state": case})
+                self.assertEqual(status, 422)
+                self.assertIn("error", error)
+
     def test_api_rejects_oversized_state(self):
         request = urllib.request.Request(
             self.base_url + "/api/state",
@@ -198,6 +238,16 @@ class DemoStateApiTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as error:
             urllib.request.urlopen(request, timeout=2)
         self.assertEqual(error.exception.code, 413)
+
+    def test_api_rejects_excessive_json_nesting_cleanly(self):
+        deeply_nested = b'{"revision":0,"state":' + b"[" * 12000 + b"0" + b"]" * 12000 + b"}"
+        request = urllib.request.Request(
+            self.base_url + "/api/state", data=deeply_nested, method="PUT",
+            headers={"Content-Type": "application/json"},
+        )
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            urllib.request.urlopen(request, timeout=2)
+        self.assertEqual(error.exception.code, 400)
 
     def test_api_rejects_malformed_json_content_type_and_boolean_revision(self):
         malformed = urllib.request.Request(
