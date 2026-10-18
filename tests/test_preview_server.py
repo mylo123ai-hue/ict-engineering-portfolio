@@ -1,5 +1,7 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
+import os
+import sqlite3
 import tempfile
 import threading
 import unittest
@@ -120,6 +122,17 @@ class DemoStateApiTests(unittest.TestCase):
     def test_sqlite_path_cannot_be_created_inside_the_repository(self):
         with self.assertRaisesRegex(ValueError, "outside the repository"):
             DemoStateStore(ROOT / "demo-state.sqlite3")
+
+    @unittest.skipUnless(os.name == "posix", "POSIX file permissions are not available")
+    def test_sqlite_database_is_owner_read_write_only(self):
+        self.assertEqual(self.db_path.stat().st_mode & 0o777, 0o600)
+
+    def test_storage_errors_return_service_unavailable(self):
+        with sqlite3.connect(self.db_path) as db:
+            db.execute("DROP TABLE demo_state")
+        self.assertEqual(self.request("/api/health")[0], 503)
+        self.assertEqual(self.request("/api/state")[0], 503)
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": self.valid_casebook()})[0], 503)
 
     def test_api_rejects_bad_shapes_and_unknown_routes(self):
         status, error = self.request("/api/state", "PUT", {"revision": 0, "state": {"tickets": []}})

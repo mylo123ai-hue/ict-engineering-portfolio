@@ -14,6 +14,7 @@ const navItems = [
 ];
 const storageKey = "northstar-ict-demo-v2";
 const conflictStorageKey = `${storageKey}-sync-conflict-v1`;
+const revisionStorageKey = `${storageKey}-server-revision-v1`;
 let state;
 let storageUnavailable = false;
 let hasValidLocalState = false;
@@ -31,6 +32,10 @@ let backendReady = false;
 let persistenceConflict = Boolean(localConflictBackup);
 let appReady = false;
 let backendRevision = 0;
+try {
+  const cachedRevision = Number(localStorage.getItem(revisionStorageKey));
+  if (Number.isInteger(cachedRevision) && cachedRevision >= 0) backendRevision = cachedRevision;
+} catch { storageUnavailable = true; }
 let persistenceMode = "connecting";
 let remoteWrites = Promise.resolve();
 let networkResult = null;
@@ -88,8 +93,10 @@ function setPersistenceStatus(mode) {
   const conflict = mode === "conflict";
   const download = document.querySelector("#downloadConflict");
   const reload = document.querySelector("#reloadShared");
+  const retry = document.querySelector("#retrySync");
   if (download) download.hidden = !conflict;
   if (reload) reload.hidden = !conflict;
+  if (retry) retry.hidden = !conflict;
   const summary = document.querySelector("#persistenceSummary");
   if (summary) summary.textContent = mode === "connected" || mode === "saving" ? "SQLite-backed" : "browser fallback";
 }
@@ -130,7 +137,13 @@ function queueBackendSave() {
       return;
     }
     backendRevision = result.revision;
-    setPersistenceStatus("connected");
+    try { localStorage.setItem(revisionStorageKey, String(backendRevision)); } catch { storageUnavailable = true; }
+    if (persistenceConflict && JSON.stringify(snapshot) === JSON.stringify(state)) {
+      persistenceConflict = false;
+      localConflictBackup = null;
+      try { localStorage.removeItem(conflictStorageKey); } catch { storageUnavailable = true; }
+    }
+    setPersistenceStatus(persistenceConflict ? "conflict" : "connected");
   }).catch(() => {
     backendReady = false;
     preserveUnsyncedSnapshot();
@@ -158,6 +171,7 @@ async function initializeApp() {
     const remote = await response.json();
     if (!Number.isInteger(remote.revision) || remote.revision < 0) throw new Error("Invalid backend revision");
     backendRevision = remote.revision;
+    try { localStorage.setItem(revisionStorageKey, String(backendRevision)); } catch { storageUnavailable = true; }
     if (remote.state !== null) {
       const restored = migrateDemoState(remote.state);
       if (!isDemoState(restored)) throw new Error("Backend state failed validation");
@@ -190,6 +204,12 @@ function downloadConflictBackup() {
   link.download = "northstar-unsynced-casebook.json";
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function retryBackendSync() {
+  if (!persistenceConflict) return;
+  state = localConflictBackup || state;
+  backendReady = true;
+  queueBackendSave();
 }
 async function useServerCopy() {
   if (!window.confirm("Discard this browser's unsynced casebook and reload the current server copy? Download a backup first if you need these changes.")) return;
@@ -699,4 +719,5 @@ window.addEventListener("hashchange", () => {
 });
 document.querySelector("#downloadConflict")?.addEventListener("click", downloadConflictBackup);
 document.querySelector("#reloadShared")?.addEventListener("click", useServerCopy);
+document.querySelector("#retrySync")?.addEventListener("click", retryBackendSync);
 initializeApp();

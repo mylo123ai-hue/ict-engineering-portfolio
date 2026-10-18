@@ -44,7 +44,7 @@ Then open <http://127.0.0.1:4173> on your computer. Keep the SSH session open wh
 | Network Fault Isolation Tool | Move from impact scope through client, gateway and service checks; distinguish local, DNS and upstream fault domains | Run a diagnostic and hand the findings to the service desk |
 | Maintenance Approval & Rollback | Gate approval on readiness evidence; document impact, validation, implementation decision and recovery path | Review a change, validate it, or route failure into rollback |
 
-All actions are simulations. They update the local SQLite casebook and browser cache; they never contact infrastructure or real users. Revision checks detect concurrent edits. On a conflict, the browser keeps an unsynced local snapshot and offers a JSON backup before switching to the current server copy.
+All actions are simulations. They update the local SQLite casebook and browser cache; they never contact infrastructure or real users. Revision checks detect concurrent edits. On a conflict or outage, the browser keeps an unsynced local snapshot and offers a JSON backup, a safe retry using the last acknowledged revision, and a confirmed option to use the current server copy.
 
 ## Engineering case studies
 
