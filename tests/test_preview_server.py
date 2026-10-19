@@ -1172,6 +1172,39 @@ class DemoStateApiTests(unittest.TestCase):
             "history": ["Request created · awaiting review"],
         })
         cases.append(blank_change_owner)
+        padded_change_owner = self.valid_casebook()
+        padded_change_owner["maintenance"].append({
+            "id": "CHG-2", "title": "Synthetic maintenance", "owner": " Unassigned ", "risk": "Low",
+            "status": "Pending approval",
+            "readiness": {key: False for key in (
+                "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
+            )},
+            "history": ["Request created · awaiting review"],
+        })
+        cases.append(padded_change_owner)
+        padded_ticket_assignee = self.valid_casebook()
+        padded_ticket_assignee["tickets"].append({
+            "id": "HD-1", "subject": "Synthetic request", "requester": "Synthetic", "category": "Other",
+            "priority": "Normal", "status": "In progress", "assignee": " Unassigned ",
+            "ageMinutes": 0, "firstResponseMinutes": 1, "updates": ["Reviewed request and contact details."],
+        })
+        cases.append(padded_ticket_assignee)
+        padded_finding_owner = self.valid_casebook()
+        padded_finding_owner["findings"].append({
+            "id": "SEC-1", "title": "Synthetic finding", "asset": "app-srv-02", "severity": "High",
+            "cvss": 8.0, "status": "Investigating", "owner": " Unassigned ",
+            "responsePlan": "Review exposure and confirm the patch window", "resolution": "",
+        })
+        cases.append(padded_finding_owner)
+        padded_incident_owner = self.valid_casebook()
+        incident_node = padded_incident_owner["nodes"][1]
+        incident_node.update({
+            "health": "Degraded", "investigation": {
+                "owner": " Unassigned ", "cause": "CPU saturation",
+                "action": "Scale the worker pool", "status": "Investigating",
+            },
+        })
+        cases.append(padded_incident_owner)
         invalid_signal = self.valid_casebook()
         invalid_signal["nodes"][0]["signals"]["portUtilization"] = []
         cases.append(invalid_signal)

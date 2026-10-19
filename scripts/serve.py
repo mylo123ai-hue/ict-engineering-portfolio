@@ -66,6 +66,11 @@ def js_trim(value):
     return value.strip(JS_TRIM_CHARS)
 
 
+def is_assigned(value):
+    trimmed = js_trim(value)
+    return bool(trimmed) and trimmed != "Unassigned"
+
+
 def is_one_of(value, options):
     return is_text(value) and value in options
 
@@ -214,7 +219,9 @@ def valid_node(node):
         return True
     if not is_record(investigation) or not is_one_of(investigation.get("status"), {"Investigating", "Resolved"}):
         return False
-    if not all(is_text(investigation.get(key)) and js_trim(investigation[key]) for key in ("owner", "cause", "action")):
+    if not all(is_text(investigation.get(key)) for key in ("owner", "cause", "action")):
+        return False
+    if not is_assigned(investigation["owner"]) or not js_trim(investigation["cause"]) or not js_trim(investigation["action"]):
         return False
     valid_resolution = (
         is_text(investigation.get("verification"))
@@ -239,7 +246,7 @@ def valid_finding(finding):
     cvss = finding.get("cvss")
     if not is_finite_number(cvss) or not 0 <= cvss <= 10:
         return False
-    if finding["status"] != "Open" and (not js_trim(finding["owner"]) or finding["owner"] == "Unassigned" or len(js_trim(finding["responsePlan"])) < 12):
+    if finding["status"] != "Open" and (not is_assigned(finding["owner"]) or len(js_trim(finding["responsePlan"])) < 12):
         return False
     return finding["status"] != "Resolved" or len(js_trim(finding["resolution"])) >= 12
 
@@ -272,8 +279,7 @@ def valid_ticket(ticket):
         return False
     if ticket["status"] != "New":
         if (
-            not js_trim(ticket["assignee"])
-            or ticket["assignee"] == "Unassigned"
+            not is_assigned(ticket["assignee"])
             or first_response is None
             or not any(len(js_trim(update)) >= 8 for update in ticket["updates"])
         ):
@@ -284,7 +290,7 @@ def valid_ticket(ticket):
 def valid_change(change):
     if not is_record(change) or not isinstance(change.get("id"), str) or not re.fullmatch(r"CHG-[0-9]+", change["id"]):
         return False
-    if not all(is_text(change.get(key)) for key in ("title", "owner")) or not js_trim(change["owner"]) or change["owner"] == "Unassigned":
+    if not all(is_text(change.get(key)) for key in ("title", "owner")) or not is_assigned(change["owner"]):
         return False
     statuses = {"Pending approval", "Rejected", "Approved", "In progress", "Completed", "Rollback required", "Rolled back"}
     if not is_one_of(change.get("risk"), {"Low", "Medium", "High"}) or not is_one_of(change.get("status"), statuses):

@@ -54,6 +54,18 @@ test("browser state validation rejects snapshots that violate server-side gates"
   const blankOwner = cloneSeed();
   blankOwner.maintenance[0].owner = "\ufeff";
   assert.equal(isDemoState(blankOwner), false, "Unicode byte-order marks are whitespace for browser owner validation");
+  const paddedUnassigned = cloneSeed();
+  paddedUnassigned.maintenance[0].owner = " Unassigned ";
+  assert.equal(isDemoState(paddedUnassigned), false, "whitespace cannot turn the unassigned placeholder into a valid owner");
+  const paddedTicket = cloneSeed();
+  paddedTicket.tickets[0].assignee = " Unassigned ";
+  assert.equal(isDemoState(paddedTicket), false, "worked tickets must have a real assignee after trimming");
+  const paddedFinding = cloneSeed();
+  paddedFinding.findings[1].owner = " Unassigned ";
+  assert.equal(isDemoState(paddedFinding), false, "investigated findings must have a real owner after trimming");
+  const paddedIncident = cloneSeed();
+  paddedIncident.nodes[1].investigation = { owner: " Unassigned ", cause: "CPU saturation", action: "Scale the worker pool", status: "Investigating" };
+  assert.equal(isDemoState(paddedIncident), false, "incidents must have a real owner after trimming");
 
   const unhealthy = cloneSeed();
   const server = unhealthy.nodes.find(node => node.id === "app-srv-02");

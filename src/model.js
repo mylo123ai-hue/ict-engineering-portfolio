@@ -34,6 +34,7 @@ export const seed = {
 export const cloneSeed = () => structuredClone(seed);
 
 const isRecord = value => value !== null && typeof value === "object" && !Array.isArray(value);
+const isAssigned = value => Boolean(value.trim()) && value.trim() !== "Unassigned";
 const isText = value => {
   if (typeof value !== "string") return false;
   for (let index = 0; index < value.length; index++) {
@@ -76,7 +77,7 @@ function validNode(node) {
   if (node.investigation === undefined || node.investigation === null) return true;
   const incident = node.investigation;
   if (!isRecord(incident) || ![incident.owner, incident.cause, incident.action].every(isText)) return false;
-  if (!incident.owner.trim() || incident.owner === "Unassigned" || !incident.cause.trim() || !incident.action.trim() || !["Investigating", "Resolved"].includes(incident.status)) return false;
+  if (!isAssigned(incident.owner) || !incident.cause.trim() || !incident.action.trim() || !["Investigating", "Resolved"].includes(incident.status)) return false;
   const validResolution = isText(incident.verification) && recoveryChecks(node).includes(incident.verification) && isText(incident.notes) && incident.notes.trim().length >= 8;
   return incident.status === "Investigating" ? node.health !== "Healthy" : validResolution && node.health === "Healthy";
 }
@@ -85,7 +86,7 @@ function validFinding(finding) {
   if (!isRecord(finding) || !isText(finding.id) || !/^SEC-\d+$/.test(finding.id)) return false;
   if (!isText(finding.title) || !findingStatuses.includes(finding.status) || !["Critical", "High", "Medium", "Low"].includes(finding.severity)) return false;
   if (!Number.isFinite(finding.cvss) || finding.cvss < 0 || finding.cvss > 10 || ![finding.asset, finding.owner, finding.responsePlan, finding.resolution].every(isText)) return false;
-  if (finding.status !== "Open" && (!finding.owner.trim() || finding.owner === "Unassigned" || finding.responsePlan.trim().length < 12)) return false;
+  if (finding.status !== "Open" && (!isAssigned(finding.owner) || finding.responsePlan.trim().length < 12)) return false;
   return finding.status !== "Resolved" || finding.resolution.trim().length >= 12;
 }
 
@@ -104,7 +105,7 @@ function validTicket(ticket) {
     && new Date(ticket.createdAt).toISOString() === ticket.createdAt
   );
   if (!validCreatedAt || !Array.isArray(ticket.updates) || !ticket.updates.every(isText)) return false;
-  if (ticket.status !== "New" && (!ticket.assignee.trim() || ticket.assignee === "Unassigned")) return false;
+  if (ticket.status !== "New" && !isAssigned(ticket.assignee)) return false;
   if (ticket.status === "New" && ticket.firstResponseMinutes !== null) return false;
   if (ticket.status !== "New" && (ticket.firstResponseMinutes === null || !ticket.updates.some(update => update.trim().length >= 8))) return false;
   if (Object.hasOwn(ticket, "relatedAssetId") && (!isText(ticket.relatedAssetId) || (ticket.relatedAssetId !== "" && !nodeSignalFields[ticket.relatedAssetId]))) return false;
@@ -127,7 +128,7 @@ function hasIndependentPeerReview(change) {
 function validChange(change) {
   if (!isRecord(change) || !isText(change.id) || !/^CHG-\d+$/.test(change.id)) return false;
   if (!isText(change.title) || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status)) return false;
-  if (!isText(change.owner) || !change.owner.trim() || change.owner === "Unassigned") return false;
+  if (!isText(change.owner) || !isAssigned(change.owner)) return false;
   if (!isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean")) return false;
   if (!Array.isArray(change.history) || !change.history.every(isText)) return false;
   if (readyChangeStatuses.includes(change.status) && !readinessChecks.every(([key]) => change.readiness[key] === true)) return false;
