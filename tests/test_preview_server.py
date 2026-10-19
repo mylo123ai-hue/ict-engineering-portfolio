@@ -1155,7 +1155,7 @@ class DemoStateApiTests(unittest.TestCase):
         })
         self.assertEqual(self.request("/api/state", "PUT", {"revision": revision, "state": state})[0], 200)
         state["maintenance"][0]["history"][0] = (
-            "Peer review by R. Patel · Independent validation plan and rollback path reviewed"
+            "Peer review by R. PATEL · Independent validation plan and rollback path reviewed"
         )
         self.assertEqual(self.request("/api/state", "PUT", {"revision": revision + 1, "state": state})[0], 422)
         self.assertEqual(self.request("/api/state")[1]["revision"], revision + 1)
