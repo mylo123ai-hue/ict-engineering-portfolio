@@ -149,6 +149,7 @@ class DemoStateApiTests(unittest.TestCase):
             ("largest safe JSON integer", MAX_SAFE_REVISION),
             ("first unsafe JSON integer", MAX_SAFE_REVISION + 1),
             ("unsafe integral exponent", 1e20),
+            ("round-trip-safe exponent-form double", 1e21),
         ):
             state = copy.deepcopy(seed)
             state["nodes"][0]["extensionCounter"] = value
@@ -193,7 +194,7 @@ class DemoStateApiTests(unittest.TestCase):
                 self.assertEqual(self.request("/api/state")[1]["revision"], revision)
 
         replacements = (
-            None, True, False, 0, -1, 1e-10, 1e20, MAX_SAFE_REVISION,
+            None, True, False, 0, -1, 1e-10, 1e20, 1e21, MAX_SAFE_REVISION,
             MAX_SAFE_REVISION + 1, "", " ", "\ufeff", "\u001c", "x", [], {}, ["x"], {"x": "x"},
         )
         mutated_cases = []
