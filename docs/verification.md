@@ -8,7 +8,7 @@ The portfolio began as a static vanilla JavaScript single-page application with 
 
 - `npm test` — 20 Node model tests and 63 Python standard-library API/preview tests pass in the current build.
 - `npm run check` — syntax checks for `src/app.js` and `src/model.js` pass without extra dependencies.
-- `node --test --experimental-test-coverage` — the current 20-test run reports 100% model line coverage and 88.33% branch coverage.
+- `node --test --experimental-test-coverage` — the current 20-test run reports 100% model line coverage and 88.86% branch coverage.
 - Tests cover malformed, duplicate-ID, unsupported-asset, and incomplete persisted state; valid Unicode scalar pairs and malformed surrogate rejection; migration of saved database, firewall utilization signals, progressed tickets, and approved changes; SLA calculation and first-response recording on ticket ownership; server-side first-response and work-note requirements on worked tickets; assigned ticket transitions and verified resolution; security ownership and closure evidence; incident cause/action and recovery evidence; network fault domains across all 64 combinations of the four selectable sites, four symptoms, and four impact scopes; change readiness; independent peer review distinct from the owner; and the written-evidence gates for approval, rejection, implementation start, validation, and rollback.
 
 ## Browser checks
@@ -98,7 +98,7 @@ The [screenshot gallery](screenshots.md) links the current desktop and mobile ho
 
 ## Scope limits
 
-The browser checks support the specific UI and workflow behaviors listed above. They are not a complete accessibility audit, cross-browser matrix, production acceptance, or operational suitability review. The applications use synthetic, rule-based examples and a local SQLite snapshot with a browser-cache fallback. They do not connect to infrastructure, scan for vulnerabilities, probe networks, send notifications, enforce identities, or provide cloud persistence. The preview server binds only to loopback; use an SSH tunnel for a private VPS demo. No CI pipeline or public deployment was configured.
+The browser checks support the specific UI and workflow behaviors listed above. They are not a complete accessibility audit, cross-browser matrix, production acceptance, or operational suitability review. Automated checks ran with Node.js 24.19.0, Python 3.12.14, Playwright 1.62.0, and Chromium 154; the documented minimum Node.js and Python versions were not separately matrix-tested. The applications use synthetic, rule-based examples and a local SQLite snapshot with a browser-cache fallback. They do not connect to infrastructure, scan for vulnerabilities, probe networks, send notifications, enforce identities, or provide cloud persistence. The preview server binds only to loopback; use an SSH tunnel for a private VPS demo. No CI pipeline or public deployment was configured.
 
 ## Codex Cloud final refinement cycle
 
@@ -108,6 +108,7 @@ The browser checks support the specific UI and workflow behaviors listed above. 
 - Re-ran `npm test`: all 20 Node model/accessibility tests and 63 Python API/preview tests passed. `npm run check` passed for `src/app.js` and `src/model.js`; `git diff --check` passed.
 - Captured ten genuine screenshots from the local Chromium application with synthetic SQLite casebooks: the desktop homepage, all five desktop application routes, mobile homepage and network form at 390 × 844, a multi-site network diagnosis result, and a maintenance rollback state. The network mobile capture reported a 390-pixel document width and no JavaScript page errors. The optimized JPEG set is approximately 1.1 MB in `docs/screenshots/`, with a central README gallery and a standalone gallery page.
 - Chromium checked six routes at ten viewport widths from 320 through 1920 px (60 combinations). Each route had one main heading, accessible names for visible interactive controls, no horizontal overflow, no page errors, and no failed requests.
+- One first-pass rerun of the viewport audit timed out on an incorrect `main#app` selector in the temporary script. After correcting it to `#app h1`, all 60 route/viewport checks passed; no application defect was involved.
 - Re-ran the network form at 390 px across all 64 site, symptom, and impact-scope combinations. Every combination rendered four checkpoints without overflow or browser errors.
 - At 390 × 844, Chromium completed a health investigation, security triage, helpdesk intake, and a network isolation result; it opened and measured the maintenance request dialog. There was no horizontal overflow or page error. At 320 × 720, health, security, ticket-intake, ticket-review, and maintenance dialogs stayed within the viewport; the long maintenance form scrolls inside its dialog.
 - A current 320 × 720 keyboard pass opened the health, security, helpdesk, and maintenance dialogs. Each had a programmatic name and description, an inert background, a focus trap that wrapped in both directions, Escape dismissal, and focus restoration to the triggering action.
