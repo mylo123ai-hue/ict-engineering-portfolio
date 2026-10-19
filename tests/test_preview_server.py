@@ -191,6 +191,45 @@ class DemoStateApiTests(unittest.TestCase):
                     revision += 1
                 self.assertEqual(self.request("/api/state")[1]["revision"], revision)
 
+        replacements = (
+            None, True, False, 0, -1, 1e-10, 1e20, MAX_SAFE_REVISION,
+            MAX_SAFE_REVISION + 1, "", " ", "\ufeff", "\u001c", "x", [], {}, ["x"], {"x": "x"},
+        )
+        mutated_cases = []
+
+        def leaf_mutations(value, path=()):
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    yield from leaf_mutations(item, path + (key,))
+            elif isinstance(value, list):
+                for index, item in enumerate(value):
+                    yield from leaf_mutations(item, path + (index,))
+            else:
+                for replacement in replacements:
+                    state = copy.deepcopy(seed)
+                    target = state
+                    for part in path[:-1]:
+                        target = target[part]
+                    target[path[-1]] = replacement
+                    yield ".".join(map(str, path)), state
+
+        for key in ("nodes", "findings", "tickets", "maintenance", "events"):
+            variants = ([], seed[key][:-1], seed[key] + [copy.deepcopy(seed[key][0])])
+            for variant in variants:
+                state = copy.deepcopy(seed)
+                state[key] = variant
+                mutated_cases.append((f"shape.{key}", state))
+        mutated_cases.extend(leaf_mutations(seed))
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", "import { readFileSync } from 'node:fs'; import { isDemoState } from './src/model.js'; const states = JSON.parse(readFileSync(0, 'utf8')); process.stdout.write(JSON.stringify(states.map(isDemoState)));"],
+            cwd=ROOT, input=json.dumps([state for _, state in mutated_cases], ensure_ascii=False),
+            check=True, capture_output=True, text=True,
+        )
+        browser_validity = json.loads(result.stdout)
+        self.assertEqual(len(browser_validity), len(mutated_cases))
+        for (label, state), browser_valid in zip(mutated_cases, browser_validity, strict=True):
+            self.assertEqual(browser_valid, valid_state_shape(state), f"mutation validator disagreement at {label}")
+
     def test_state_is_persisted_and_revision_conflicts_are_rejected(self):
         initial_status, initial = self.request("/api/state")
         self.assertEqual(initial_status, 200)
