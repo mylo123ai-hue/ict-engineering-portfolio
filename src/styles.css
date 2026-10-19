@@ -1770,12 +1770,6 @@ tbody tr:last-child td {
 .check-pass i {
   background:#eaf8f3
 }
-.check-issue {
-  color:#80520d
-}
-.check-issue i {
-  background:#fff5e4
-}
 .diagnostic-result-head+.result-summary~.button {
   margin:0 15px 15px;
   width:calc(100% - 30px)
