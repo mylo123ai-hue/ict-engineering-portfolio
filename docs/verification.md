@@ -8,7 +8,7 @@ The portfolio began as a static vanilla JavaScript single-page application with 
 
 ## Automated checks
 
-- At the backend-cycle checkpoint, `npm test` passed 16 Node model tests and 61 Python standard-library API/preview tests. The current final-cycle run passes 17 Node tests and 68 Python tests; details are recorded below.
+- At the backend-cycle checkpoint, `npm test` passed 16 Node model tests and 61 Python standard-library API/preview tests. The current final-cycle run passes 18 Node tests and 69 Python tests; details are recorded below.
 - `npm run check` — syntax checks for `src/app.js` and `src/model.js` pass without extra dependencies.
 - `node --test --experimental-test-coverage` — model has 100% line coverage and 90.83% branch coverage in the current recorded run (17 tests).
 - Tests cover malformed, duplicate-ID, unsupported-asset, and incomplete persisted state; canonical UTC ticket creation timestamps; non-empty ticket and change details; migration of saved database, firewall utilization signals, progressed tickets, and approved changes; SLA calculation and first-response recording on ticket ownership; server-side first-response and work-note requirements on worked tickets; assigned ticket transitions and verified resolution; security ownership and closure evidence; incident cause/action and recovery evidence; network fault domains across all 64 combinations of the four selectable sites, four symptoms, and four impact scopes; change readiness; independent peer review distinct from the owner; and the written-evidence gates for approval, rejection, implementation start, validation, and rollback.
@@ -111,7 +111,7 @@ The starting point was `development` at `9f632ad7469f0254ec2b622c112da2499a164ec
 
 ### Final-cycle automated checks
 
-- `npm test` — 17 Node model tests and 68 Python API/server tests passed on this branch after the incomplete-write-envelope fix. Run it once more in the final verification window after documentation and screenshot checks.
+- `npm test` — 18 Node model tests and 69 Python API/server tests passed on this branch after the incomplete-write-envelope and blank-record validation fixes. Run it once more in the final verification window after documentation and screenshot checks.
 - `npm run check` — `src/app.js` and `src/model.js` syntax checks passed.
 - `python3 -B -m py_compile scripts/serve.py scripts/backup_demo_state.py` — passed.
 - `git diff --check` — passed.
