@@ -2,6 +2,8 @@
 
 The final-cycle screenshots below were captured in real headless Chromium from the running application, using an isolated temporary SQLite database and synthetic casebook records. They are not mockups or generated interface art. The server remained on `127.0.0.1`; no external hosts were contacted.
 
+The homepage images show the casebook at the start of the capture run. Application workflow images were taken later in that same run after simulated decisions were saved, so counts change as the ticket and finding workflows progress.
+
 ## Portfolio overview
 
 | Desktop · 1440 px | Mobile · 390 px |
