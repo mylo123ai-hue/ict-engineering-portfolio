@@ -26,6 +26,7 @@ test("demo state validation rejects truncated or malformed saved data", () => {
   assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "core-sw-01" ? { ...node, id: "unsupported-node-01" } : node) }), false);
   assert.equal(isDemoState({ ...saved, tickets: [saved.tickets[0], { ...saved.tickets[1], id: saved.tickets[0].id }] }), false);
   assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "app-srv-02" ? { ...node, investigation: { cause: "CPU pressure", action: "Drain the worker pool", status: "Investigating" } } : node) }), false);
+  assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "app-srv-02" ? { ...node, investigation: { owner: "Unassigned", cause: "CPU pressure", action: "Drain the worker pool", status: "Investigating" } } : node) }), false);
   assert.equal(isDemoState({ ...saved, tickets: [{ id: "HD-1", status: "Unknown" }] }), false);
   assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], priority: "Urgent" }] }), false);
   assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], status: "In progress", assignee: "Unassigned" }] }), false);
