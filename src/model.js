@@ -53,6 +53,7 @@ function isIsoTimestamp(value) {
   return isText(value) && !value.startsWith("0000-") && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
     && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 }
+// Match the API's stable ASCII-only fold; runtime Unicode casing tables differ.
 function foldAsciiCase(value) {
   return value.replace(/[A-Z]/g, character => String.fromCharCode(character.charCodeAt(0) + 32));
 }
