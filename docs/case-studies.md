@@ -34,7 +34,7 @@ These are fictional scenarios built from synthetic data. Simulated decisions sav
 
 **Decision and trade-off.** High priority receives a shorter illustrative 15-minute first-response target, compared with 30 minutes for standard priority. Newly created tickets age from their browser-local creation timestamp; seeded tickets retain fixed synthetic fixture ages. These are demo rules, not a service contract.
 
-**Verification.** Domain tests cover response targets, invalid transitions, ownership, work-note requirements and requester-confirmed closure. Browser checks progressed an existing ticket and created a ticket from network diagnostic evidence.
+**Verification.** Domain tests cover response targets, invalid transitions, ownership, work-note requirements and requester-confirmed closure. Browser checks progressed an existing ticket and created a ticket from network diagnostic evidence; the screenshot workflow advances its synthetic clock by four minutes before recording the first response.
 
 **Lesson demonstrated.** Good service-desk work preserves impact, accountability and a useful handover rather than just changing a status label.
 

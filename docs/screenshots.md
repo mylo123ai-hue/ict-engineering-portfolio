@@ -28,7 +28,7 @@ SEC-2418 includes an assigned owner, remediation plan, resolved state, and verif
 
 ### 3. IT Helpdesk Ticket System
 
-HD-1049 is assigned and in progress. Its first response, work note, priority, and response target are shown in the queue.
+HD-1049 is assigned and in progress. A simulated four-minute first response lands inside the illustrative 15-minute high-priority target; its work note, owner, and status are visible in the queue.
 
 ![Chromium capture of the helpdesk queue with the East wing Wi-Fi ticket assigned to an engineer and first response recorded](screenshots/final-cycle/helpdesk-first-response.jpg)
 
@@ -48,17 +48,19 @@ The same diagnostic was checked at 390 px on a phone-sized viewport. The result,
 
 CHG-208 passes readiness review, starts within its approved window, fails post-change validation, then records restoration and a passing recovery check.
 
+The captured decision log uses a synthetic 22:00 start and two-minute simulated steps through rollback; these timestamps do not represent a real maintenance window.
+
 ![Chromium capture of the maintenance case showing the rollback status and its approval, implementation, failed validation, and recovery decision log](screenshots/final-cycle/maintenance-rollback.jpg)
 
 ## Earlier before-and-after homepage captures
 
 The earlier files below are retained to show the recruiter-facing frontend redesign from the previous improvement cycle. They are separate from the final-cycle browser captures above.
 
-| Baseline desktop | Previous-cycle desktop |
+| Synthetic baseline desktop | Synthetic previous-cycle desktop |
 | --- | --- |
 | ![Baseline homepage capture](homepage.jpg) | ![Previous-cycle homepage capture](homepage-v3.jpg) |
 
-| Baseline mobile | Previous-cycle mobile |
+| Synthetic baseline mobile | Synthetic previous-cycle mobile |
 | --- | --- |
 | ![Baseline mobile homepage capture](homepage-mobile.jpg) | ![Previous-cycle mobile homepage capture](homepage-mobile-v3.jpg) |
 

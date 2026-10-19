@@ -7,16 +7,16 @@ Please independently review the implementation and evidence in this repository. 
 REPOSITORY AND BRANCH
 Repository: https://github.com/mylo123ai-hue/ict-engineering-portfolio
 Repository visibility: Private
-Review branch: final-four-hour-cycle (local branch, not pushed)
+Review branch: final-four-hour-cycle (pushed to the private repository)
+Branch URL: https://github.com/mylo123ai-hue/ict-engineering-portfolio/tree/final-four-hour-cycle
 Base checkpoint: development at 9f632ad7469f0254ec2b622c112da2499a164ecd
-Review HEAD: use the latest commit on final-four-hour-cycle
-Default branch: main (currently only the initial README commit; it does not contain the portfolio source yet)
+Review HEAD: current tip of `final-four-hour-cycle` (recorded by `git rev-parse HEAD` after checkout)
+Default branch: main (unchanged; the portfolio source remains on development and the final-cycle branch)
 
-The source files are on development in GitHub. The final-cycle changes are on a local-only branch named `final-four-hour-cycle` and have not been pushed, merged, or published. To review the final-cycle source in the shared Cloud Codex workspace, run `git switch final-four-hour-cycle`. GitHub still shows the prior development baseline; if its page shows only README.md, switch the branch selector from main to development, or open:
-https://github.com/mylo123ai-hue/ict-engineering-portfolio/tree/development
+The final-cycle branch is available on GitHub. The repository remains private. No merge, pull request, public deployment, or visibility change was made; `main` and `development` are unchanged. Sign in with an authorized account before opening the branch.
 
-To fetch the prior development baseline (not the unpushed final cycle), use an authorized account because the repository is private:
-  git clone --branch development git@github.com:mylo123ai-hue/ict-engineering-portfolio.git
+To review the final-cycle branch, use an authorized account:
+  git clone --branch final-four-hour-cycle git@github.com:mylo123ai-hue/ict-engineering-portfolio.git
   cd ict-engineering-portfolio
   npm test
   npm run check
@@ -48,12 +48,11 @@ KEY FILES
 
 RECORDED VERIFICATION
 The current verification record says:
-- Final-cycle `npm test`: 19 Node model/accessibility tests and 69 Python tests passed.
-- npm run check and Python compile checks passed.
-- Headless Chromium checks covered the six routes at desktop/tablet/mobile widths, workflow state changes across all five apps, API persistence/history/restore, and no observed browser/HTTP errors in the recorded runs.
-- Backup verification checked SQLite integrity and revision/history consistency.
-- The final cycle captured eight actual Chromium screenshots and checked all six routes at 320, 360, 390, 520, 768, 820, 1024, and 1440 CSS px; it also aligned browser-side validation with API evidence gates, Unicode character counts, and the maintenance validation-plan prerequisite.
-- These are local recorded checks. GitHub Actions has no recorded workflow runs, so there is no CI result to rely on.
+- Final-cycle `npm test`: 19 JavaScript model/accessibility tests and 69 Python API/server tests passed; `npm run check`, Python compilation, and model coverage checks passed.
+- Chromium checks covered the homepage and five applications across 60 route/viewport combinations, all 128 network site/symptom/scope scenarios at 320 and 390 px, keyboard-accessible dialogs, and evidence-backed workflows in all five apps.
+- A fresh SQLite casebook persisted the integrated workflows at revision 13. Separate browser runs checked history/restore, stale-write conflicts, cross-browser conflict recovery, API-outage retry, and a checked backup with integrity `ok`, matching head/history, and mode `0600`.
+- Eight genuine Chromium screenshots are in `docs/screenshots/final-cycle/` and embedded in the README and [gallery](screenshots.md). The helpdesk first response and maintenance-window timestamps use an explicitly documented synthetic browser clock.
+- The exact test commands, evidence, and limits are in [verification.md](verification.md). GitHub Actions has no recorded workflow runs; these are local checks, not CI evidence.
 
 Please inspect docs/verification.md for the precise scope and caveats. Treat its statements as claims to verify against code/tests where practical.
 
@@ -71,7 +70,7 @@ LIMITATIONS AND NON-GOALS
 - SQLite is local to one server/operator; there is no authentication, authorization, multi-user model, cloud persistence, or immutable audit log.
 - The preview is not suitable for public exposure. No public deployment is configured.
 - The recorded browser checks are not a production acceptance review, full browser matrix, load test, or formal accessibility certification.
-- The GitHub default branch is main and shows only the initial README commit; implementation is on the private development branch. Final-cycle changes are currently local to `final-four-hour-cycle` and have not been pushed or merged.
+- The repository is private and the final-cycle source is on the pushed `final-four-hour-cycle` branch. Neither `main` nor `development` was modified, and no merge or deployment occurred.
 
 EXPECTED REVIEW OUTPUT
 Return a concise independent code review with:
