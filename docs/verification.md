@@ -8,7 +8,7 @@ The portfolio began as a static vanilla JavaScript single-page application with 
 
 ## Automated checks
 
-- At the backend-cycle checkpoint, `npm test` passed 16 Node model tests and 61 Python standard-library API/preview tests. The current final-cycle run passes 18 Node tests and 69 Python tests; details are recorded below.
+- At the backend-cycle checkpoint, `npm test` passed 16 Node model tests and 61 Python standard-library API/preview tests. The current final-cycle run passes 19 Node model/accessibility tests and 69 Python tests; details are recorded below.
 - `npm run check` — syntax checks for `src/app.js` and `src/model.js` pass without extra dependencies.
 - `node --test --experimental-test-coverage` — model has 100% line coverage and 90.83% branch coverage in the current recorded run (17 tests).
 - Tests cover malformed, duplicate-ID, unsupported-asset, and incomplete persisted state; canonical UTC ticket creation timestamps; non-empty ticket and change details; migration of saved database, firewall utilization signals, progressed tickets, and approved changes; SLA calculation and first-response recording on ticket ownership; server-side first-response and work-note requirements on worked tickets; assigned ticket transitions and verified resolution; security ownership and closure evidence; incident cause/action and recovery evidence; network fault domains across all 64 combinations of the four selectable sites, four symptoms, and four impact scopes; change readiness; independent peer review distinct from the owner; and the written-evidence gates for approval, rejection, implementation start, validation, and rollback.
@@ -111,7 +111,7 @@ The starting point was `development` at `9f632ad7469f0254ec2b622c112da2499a164ec
 
 ### Final-cycle automated checks
 
-- `npm test` — 18 Node model tests and 69 Python API/server tests passed on this branch after the incomplete-write-envelope and blank-record validation fixes. Run it once more in the final verification window after documentation and screenshot checks.
+- `npm test` — 19 Node model/accessibility tests and 69 Python API/server tests passed after the integer-rounding parity and CSS status/contrast fixes. Run it once more in the final verification window after documentation and screenshot checks.
 - `npm run check` — `src/app.js` and `src/model.js` syntax checks passed.
 - `python3 -B -m py_compile scripts/serve.py scripts/backup_demo_state.py` — passed.
 - `git diff --check` — passed.
@@ -126,6 +126,8 @@ The starting point was `development` at `9f632ad7469f0254ec2b622c112da2499a164ec
 - A maintenance readiness regression proves an unready request remains valid while the plan is outstanding, but setting `validationReady` requires a non-empty plan of at least 12 characters.
 - A `PUT /api/state` request with a valid revision but no `state` member now returns HTTP 422, leaves revision 0 untouched, and does not raise an uncaught handler exception; the regression passes in the full Python suite.
 - Whitespace-only monitored asset labels, security finding titles/assets, activity events, ticket updates, and change-history entries are rejected by both validators; API regressions confirm those writes return 422 without advancing the revision.
+- A final UI review found the network diagnostic rendered `pass` state classes that had no matching success-color selector, plus muted text colors on warning/fault results. Added a focused stylesheet contrast regression and corrected the pass, warning, failure, blocked, and evidence text colors; the new test first exposed the low contrast, then passed after the corrections.
+- Numeric wire-format regression covers large integer tokens that Chromium rounds to exponent-form numbers. The API now parses those tokens with browser-compatible IEEE-754 rounding and accepts only values whose JSON representation remains stable; the cross-runtime edge corpus still passes.
 - Browser and Python string-length checks now use the same Unicode code-point semantics. Six emoji no longer meet a 12-character evidence requirement merely because JavaScript counts UTF-16 surrogate pairs separately.
 - A final side-by-side validator review found two edge cases: the browser rejected an incident owner of `Unassigned` while the API accepted it, and a full code-point sweep found 55 lowercase-mapping differences between the JavaScript and Python runtime tables. The API now rejects `Unassigned`; both layers fold ASCII casing for reviewer/owner comparisons and preserve non-ASCII characters exactly. Focused regressions confirm those rules on both validators, including the Unicode reviewer case.
 

@@ -304,7 +304,7 @@ class DemoStateApiTests(unittest.TestCase):
             with self.subTest(revision=revision), self.assertRaisesRegex(ValueError, "History revision"):
                 self.server.store.read_history(revision)
 
-    def test_json_integer_boundary_stays_exact_in_javascript(self):
+    def test_json_integer_boundary_matches_browser_number_rounding(self):
         state = self.valid_casebook()
         state["nodes"][0]["extension"] = MAX_SAFE_REVISION
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)

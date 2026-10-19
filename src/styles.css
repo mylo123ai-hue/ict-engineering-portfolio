@@ -1099,7 +1099,7 @@ tbody tr:last-child td {
 .text-action {
   border:0;
   background:transparent;
-  color:#7585e3;
+  color:#4054c1;
   font:600 9px "DM Sans",sans-serif;
   cursor:pointer;
   margin-left:auto;
@@ -1385,7 +1385,7 @@ tbody tr:last-child td {
   color:#a34242
 }
 .priority.high i {
-  background:#e17b7b
+  background:#a34242
 }
 .row-menu {
   border:0;
@@ -1484,13 +1484,13 @@ tbody tr:last-child td {
 }
 .network-intro p {
   font-size:9px;
-  color:#828eb5;
+  color:#59677d;
   margin:5px 0 0
 }
 .sim-tag {
   font-size:7px;
   letter-spacing:.9px;
-  color:#8490b3;
+  color:#59677d;
   display:flex;
   align-items:center
 }
@@ -1631,9 +1631,9 @@ tbody tr:last-child td {
   font-size:9px;
   font-weight:700
 }
-.sequence-item.complete>span {
+.sequence-item.sequence-pass>span {
   background:#eaf8f3;
-  color:#35a588
+  color:#27745f
 }
 .sequence-item strong,.sequence-item small {
   display:block
@@ -1644,7 +1644,7 @@ tbody tr:last-child td {
 }
 .sequence-item small {
   font-size:8px;
-  color:#a0a9b7;
+  color:#59677d;
   margin-top:3px
 }
 .sequence-item>i {
@@ -1697,7 +1697,7 @@ tbody tr:last-child td {
 }
 .diagnostic-result-head p {
   font-size:8px;
-  color:#a0a9b7;
+  color:#59677d;
   margin:3px 0 0
 }
 .result-summary {
@@ -1723,11 +1723,11 @@ tbody tr:last-child td {
 }
 .result-summary strong {
   font-size:9px;
-  color:#9f7431
+  color:#80520d
 }
 .result-summary p {
   font-size:8px;
-  color:#a7895a;
+  color:#80520d;
   line-height:1.45;
   margin:4px 0 0
 }
@@ -1741,10 +1741,10 @@ tbody tr:last-child td {
   padding:9px 0;
   border-bottom:1px solid #f0f2f5;
   font-size:8px;
-  color:#6c7a8f
+  color:#59677d
 }
 .check-index {
-  color:#b2bac5;
+  color:#59677d;
   font-size:7px
 }
 .check-row strong {
@@ -1764,14 +1764,14 @@ tbody tr:last-child td {
   place-items:center;
   font-size:8px
 }
-.check-ok {
-  color:#3a9e85
+.check-pass {
+  color:#27745f
 }
-.check-ok i {
+.check-pass i {
   background:#eaf8f3
 }
 .check-issue {
-  color:#c28e3b
+  color:#80520d
 }
 .check-issue i {
   background:#fff5e4
@@ -2668,7 +2668,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 }
 .sla-breached {
   background:#fff0ef;
-  color:#a34242
+  color:#9b3d3d
 }
 .sla-summary strong {
   font:600 10px "DM Sans",sans-serif;
@@ -2876,23 +2876,23 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 .next-test p {
   font-size:8px;
   line-height:1.45;
-  color:#7482bd;
+  color:#59677d;
   margin:4px 0 0
 }
 .check-fail {
-  color:#c66568
+  color:#9b3d3d
 }
 .check-fail i {
   background:#fff0ef
 }
 .check-warning {
-  color:#bd8833
+  color:#80520d
 }
 .check-warning i {
   background:#fff6e5
 }
 .check-blocked {
-  color:#8c97a6
+  color:#59677d
 }
 .check-blocked i {
   background:#f0f2f5
@@ -3104,15 +3104,15 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
   background:#e7a648
 }
 .sequence-item.sequence-fail>span {
-  color:#c96c6f;
+  color:#9b3d3d;
   background:#fff0ef
 }
 .sequence-item.sequence-warning>span {
-  color:#b8873d;
+  color:#80520d;
   background:#fff7e8
 }
 .sequence-item.sequence-blocked>span {
-  color:#8a95a5;
+  color:#59677d;
   background:#f1f3f6
 }
 /* Recruiter-facing copy remains legible at normal browser zoom. */

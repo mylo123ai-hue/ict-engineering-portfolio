@@ -48,7 +48,7 @@ KEY FILES
 
 RECORDED VERIFICATION
 The current verification record says:
-- Final-cycle `npm test`: 18 Node tests and 69 Python tests passed.
+- Final-cycle `npm test`: 19 Node model/accessibility tests and 69 Python tests passed.
 - npm run check and Python compile checks passed.
 - Headless Chromium checks covered the six routes at desktop/tablet/mobile widths, workflow state changes across all five apps, API persistence/history/restore, and no observed browser/HTTP errors in the recorded runs.
 - Backup verification checked SQLite integrity and revision/history consistency.
