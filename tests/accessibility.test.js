@@ -83,4 +83,6 @@ test("decorative maintenance and network symbols are hidden from assistive techn
   assert.match(app, /class="date-chip"><span aria-hidden="true">◉<\/span>/);
   assert.match(app, /data-action="health-refresh"><span aria-hidden="true">↻<\/span> Recheck/);
   assert.match(app, /<span aria-hidden="true">▣<\/span> \$\{esc\(change\.system\)\}/);
+  assert.match(app, /class="resolved-check"><span aria-hidden="true">✓<\/span> Evidence recorded/);
+  assert.match(app, /class="empty-state"><span aria-hidden="true">◷<\/span><strong>No change requests yet/);
 });
