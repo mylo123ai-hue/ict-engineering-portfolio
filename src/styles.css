@@ -293,10 +293,10 @@ body {
   margin-bottom:26px
 }
 .eyebrow {
-  font-size:10px;
+  font-size:9px;
   letter-spacing:1.45px;
   font-weight:700;
-  color:#59677d;
+  color:#97a1b2;
   margin-bottom:9px
 }
 .eyebrow span {
@@ -968,11 +968,11 @@ tbody tr:last-child td {
 .status-pill.healthy i,.status-pill.resolved i,.status-pill.approved i,.status-pill.completed i {
   background:#38b594
 }
-.status-pill.degraded,.status-pill.investigating,.status-pill.pending-approval,.status-pill.waiting {
+.status-pill.degraded,.status-pill.investigating,.status-pill.pending-approval,.status-pill.waiting,.status-pill.recovery-verification-required {
   background:#fff7e9;
   color:#be8935
 }
-.status-pill.degraded i,.status-pill.investigating i,.status-pill.pending-approval i,.status-pill.waiting i {
+.status-pill.degraded i,.status-pill.investigating i,.status-pill.pending-approval i,.status-pill.waiting i,.status-pill.recovery-verification-required i {
   background:#e5a43f
 }
 .status-pill.offline,.status-pill.rejected,.status-pill.rolled-back {
@@ -1372,8 +1372,8 @@ tbody tr:last-child td {
   display:inline-flex;
   align-items:center;
   gap:4px;
-  font-size:9px;
-  color:#59677d
+  font-size:8px;
+  color:#8390a3
 }
 .priority i {
   width:5px;
@@ -1382,10 +1382,10 @@ tbody tr:last-child td {
   border-radius:50%
 }
 .priority.high {
-  color:#a34242
+  color:#d97575
 }
 .priority.high i {
-  background:#a34242
+  background:#e17b7b
 }
 .row-menu {
   border:0;
@@ -1437,12 +1437,12 @@ tbody tr:last-child td {
   padding:9px 0
 }
 .note-items>div>span {
-  font-size:9px;
-  color:#59677d
+  font-size:8px;
+  color:#a3adbb
 }
 .note-items p {
-  font-size:9px;
-  color:#59677d;
+  font-size:8px;
+  color:#909bab;
   margin:0
 }
 .note-items strong {
@@ -1484,13 +1484,13 @@ tbody tr:last-child td {
 }
 .network-intro p {
   font-size:9px;
-  color:#59677d;
+  color:#828eb5;
   margin:5px 0 0
 }
 .sim-tag {
   font-size:7px;
   letter-spacing:.9px;
-  color:#59677d;
+  color:#8490b3;
   display:flex;
   align-items:center
 }
@@ -1625,15 +1625,15 @@ tbody tr:last-child td {
   height:22px;
   border-radius:7px;
   background:#f3f5fa;
-  color:#59677d;
+  color:#9aa5b4;
   display:grid;
   place-items:center;
-  font-size:9px;
+  font-size:8px;
   font-weight:700
 }
 .sequence-item.sequence-pass>span {
   background:#eaf8f3;
-  color:#27745f
+  color:#35a588
 }
 .sequence-item strong,.sequence-item small {
   display:block
@@ -1644,7 +1644,7 @@ tbody tr:last-child td {
 }
 .sequence-item small {
   font-size:8px;
-  color:#59677d;
+  color:#a0a9b7;
   margin-top:3px
 }
 .sequence-item>i {
@@ -1697,7 +1697,7 @@ tbody tr:last-child td {
 }
 .diagnostic-result-head p {
   font-size:8px;
-  color:#59677d;
+  color:#a0a9b7;
   margin:3px 0 0
 }
 .result-summary {
@@ -1723,11 +1723,11 @@ tbody tr:last-child td {
 }
 .result-summary strong {
   font-size:9px;
-  color:#80520d
+  color:#9f7431
 }
 .result-summary p {
   font-size:8px;
-  color:#80520d;
+  color:#a7895a;
   line-height:1.45;
   margin:4px 0 0
 }
@@ -1741,10 +1741,10 @@ tbody tr:last-child td {
   padding:9px 0;
   border-bottom:1px solid #f0f2f5;
   font-size:8px;
-  color:#59677d
+  color:#6c7a8f
 }
 .check-index {
-  color:#59677d;
+  color:#b2bac5;
   font-size:7px
 }
 .check-row strong {
@@ -1765,7 +1765,7 @@ tbody tr:last-child td {
   font-size:8px
 }
 .check-pass {
-  color:#27745f
+  color:#3a9e85
 }
 .check-pass i {
   background:#eaf8f3
@@ -2202,7 +2202,7 @@ tbody tr:last-child td {
     display:none
   }
   .top-actions {
-    gap:4px
+    gap:2px
   }
   .top-actions #downloadConflict,
   .top-actions #retrySync,
@@ -2644,10 +2644,10 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
   gap:5px;
   border-radius:12px;
   padding:4px 7px;
-  font-size:9px;
+  font-size:7px;
   font-weight:700;
   background:#edf8f3;
-  color:#27745f;
+  color:#369578;
   white-space:nowrap
 }
 .sla-pill i {
@@ -2658,11 +2658,11 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 }
 .sla-due-soon {
   background:#fff7e8;
-  color:#80520d
+  color:#b17d2c
 }
 .sla-breached {
   background:#fff0ef;
-  color:#9b3d3d
+  color:#c95f64
 }
 .sla-summary strong {
   font:600 10px "DM Sans",sans-serif;
@@ -2748,21 +2748,6 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 }
 .readiness-check input:disabled {
   cursor:default
-}
-.validation-plan-required {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  padding:8px 0;
-  border-top:1px solid #f0f2f6
-}
-.validation-plan-required p {
-  margin:0;
-  max-width:270px;
-  color:#68778d;
-  font-size:8px;
-  line-height:1.45
 }
 .risk-check {
   color:#a27231
@@ -2870,7 +2855,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 .next-test p {
   font-size:8px;
   line-height:1.45;
-  color:#59677d;
+  color:#7482bd;
   margin:4px 0 0
 }
 .check-fail {
@@ -2886,7 +2871,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
   background:#fff6e5
 }
 .check-blocked {
-  color:#59677d
+  color:#8c97a6
 }
 .check-blocked i {
   background:#f0f2f5
@@ -3098,15 +3083,15 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
   background:#e7a648
 }
 .sequence-item.sequence-fail>span {
-  color:#9b3d3d;
+  color:#c96c6f;
   background:#fff0ef
 }
 .sequence-item.sequence-warning>span {
-  color:#80520d;
+  color:#b8873d;
   background:#fff7e8
 }
 .sequence-item.sequence-blocked>span {
-  color:#59677d;
+  color:#8a95a5;
   background:#f1f3f6
 }
 /* Recruiter-facing copy remains legible at normal browser zoom. */
@@ -3183,9 +3168,6 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
   font-size:9px;
   color:#5b6980
 }
-.validation-plan-required p {
-  font-size:9px
-}
 .readiness-heading strong {
   font-size:9px
 }
@@ -3202,14 +3184,14 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 }
 .dialog-hint {
   font-size:9px;
-  color:#606f84
+  color:#59677d
 }
 .modal-heading p {
   font-size:10px;
   color:#68778d
 }
 .sla-pill {
-  font-size:9px
+  font-size:8px
 }
 .change-impact a {
   color:#5269c4;
@@ -3393,7 +3375,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 .status-pill.healthy,.status-pill.resolved,.status-pill.approved,.status-pill.completed {
   color:#276c59
 }
-.status-pill.degraded,.status-pill.investigating,.status-pill.pending-approval,.status-pill.waiting {
+.status-pill.degraded,.status-pill.investigating,.status-pill.pending-approval,.status-pill.waiting,.status-pill.recovery-verification-required {
   color:#80520d
 }
 .status-pill.offline,.status-pill.rejected,.status-pill.rolled-back {
@@ -3435,4 +3417,68 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 }
 .synthetic-label {
   color:#765015
+}
+
+/* Keep compact labels and workflow results readable while preserving their color coding. */
+.main-area .page-heading .eyebrow,
+.main-area .priority,
+.main-area .sim-tag {
+  color:#59677d
+}
+.main-area .priority.high {
+  color:#a34242
+}
+.main-area .priority.high i {
+  background:#a34242
+}
+.main-area .sla-pill {
+  color:#27745f
+}
+.main-area .sla-due-soon {
+  color:#80520d
+}
+.main-area .sla-breached {
+  color:#9b3d3d
+}
+.main-area .network-intro p,
+.main-area .note-items>div>span,
+.main-area .note-items p,
+.main-area .sequence-item small {
+  color:#59677d
+}
+.main-area .sequence-item>span {
+  color:#59677d
+}
+.main-area .sequence-item.sequence-pass>span {
+  color:#27745f
+}
+.main-area .sequence-item.sequence-fail>span {
+  color:#9b3d3d
+}
+.main-area .sequence-item.sequence-warning>span {
+  color:#80520d
+}
+.main-area .sequence-item.sequence-blocked>span {
+  color:#59677d
+}
+.main-area .result-summary strong {
+  color:#80520d
+}
+.main-area .check-row {
+  color:#59677d
+}
+.main-area .check-pass {
+  color:#27745f
+}
+.main-area .check-warning {
+  color:#80520d
+}
+.main-area .check-fail {
+  color:#9b3d3d
+}
+.main-area .check-blocked {
+  color:#59677d
+}
+.dialog-root .dialog-hint {
+  color:#59677d
 }

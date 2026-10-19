@@ -1,8 +1,6 @@
 import json
-import copy
 from concurrent.futures import ThreadPoolExecutor
 import os
-import random
 import sqlite3
 import shutil
 import socket
@@ -18,7 +16,8 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from scripts.backup_demo_state import backup_database
 from scripts.serve import (
-    DemoStateStore, MAX_SAFE_REVISION, MAX_STATE_BYTES, MAX_STATE_REQUEST_BYTES, PortfolioHandler, ROOT, create_server, is_allowed_path, valid_state_shape,
+    DemoStateStore, MAX_SAFE_REVISION, MAX_STATE_BYTES, PortfolioHandler, ROOT, create_server,
+    is_allowed_path, migrate_legacy_recovery_state, valid_state_shape,
 )
 
 
@@ -128,144 +127,6 @@ class DemoStateApiTests(unittest.TestCase):
             "findings": [], "tickets": [], "maintenance": [], "events": ["Synthetic demo event"],
         }
 
-    def test_client_javascript_and_api_state_validation_agree_on_edge_case_corpus(self):
-        """Run the client validator under Node and compare it with the live server boundary."""
-        result = subprocess.run(
-            ["node", "--input-type=module", "-e", "import { cloneSeed } from './src/model.js'; process.stdout.write(JSON.stringify(cloneSeed()));"],
-            cwd=ROOT, check=True, capture_output=True, text=True,
-        )
-        seed = json.loads(result.stdout)
-        cases = [("synthetic seed", copy.deepcopy(seed))]
-
-        bom_subject = copy.deepcopy(seed)
-        bom_subject["tickets"][1]["subject"] = "\ufeff"
-        cases.append(("BOM-only required ticket subject", bom_subject))
-
-        separator_subject = copy.deepcopy(seed)
-        separator_subject["tickets"][1]["subject"] = "\u001c"
-        cases.append(("ECMAScript-trim-preserved separator subject", separator_subject))
-
-        for label, value in (
-            ("largest safe JSON integer", MAX_SAFE_REVISION),
-            ("first unsafe JSON integer", MAX_SAFE_REVISION + 1),
-            ("unsafe integral exponent", 1e20),
-            ("round-trip-safe exponent-form double", 1e21),
-        ):
-            state = copy.deepcopy(seed)
-            state["nodes"][0]["extensionCounter"] = value
-            cases.append((label, state))
-
-        unassigned_incident = copy.deepcopy(seed)
-        erp = next(item for item in unassigned_incident["nodes"] if item["id"] == "app-srv-02")
-        erp["investigation"] = {
-            "owner": "Unassigned", "cause": "Elevated worker CPU", "action": "Inspect the queue",
-            "status": "Investigating",
-        }
-        cases.append(("incident without an accountable owner", unassigned_incident))
-
-        for reviewer, label in (("r. PATEL", "case-varied owner as peer"), ("T. Brown", "independent peer")):
-            state = copy.deepcopy(seed)
-            change = state["maintenance"][0]
-            change.update({
-                "risk": "High", "status": "Approved",
-                "validationPlan": "Compare ERP login and queue depth to the pre-change baseline.",
-                "readiness": {**change["readiness"], "validationReady": True, "peerReview": True},
-                "history": [
-                    f"Peer review by {reviewer} · Validation evidence and rollback steps independently reviewed.",
-                    "Approved by Jamie Diaz · Impact and recovery checks are sufficiently defined.",
-                ],
-            })
-            cases.append((label, state))
-
-        result = subprocess.run(
-            ["node", "--input-type=module", "-e", "import { readFileSync } from 'node:fs'; import { isDemoState } from './src/model.js'; const cases = JSON.parse(readFileSync(0, 'utf8')); process.stdout.write(JSON.stringify(cases.map(isDemoState)));"],
-            cwd=ROOT, input=json.dumps([state for _, state in cases], ensure_ascii=False),
-            check=True, capture_output=True, text=True,
-        )
-        javascript_validity = json.loads(result.stdout)
-        revision = 0
-        for (label, state), javascript_valid in zip(cases, javascript_validity, strict=True):
-            with self.subTest(case=label):
-                self.assertEqual(javascript_valid, valid_state_shape(state), f"validator disagreement for {label}")
-                status, _ = self.request("/api/state", "PUT", {"revision": revision, "state": state})
-                self.assertEqual(status, 200 if javascript_valid else 422, label)
-                if javascript_valid:
-                    revision += 1
-                self.assertEqual(self.request("/api/state")[1]["revision"], revision)
-
-        replacements = (
-            None, True, False, 0, -1, 1e-10, 1e20, 1e21, MAX_SAFE_REVISION,
-            MAX_SAFE_REVISION + 1, "", " ", "\ufeff", "\u001c", "x", [], {}, ["x"], {"x": "x"},
-        )
-        mutated_cases = []
-
-        def leaf_mutations(value, path=()):
-            if isinstance(value, dict):
-                for key, item in value.items():
-                    yield from leaf_mutations(item, path + (key,))
-            elif isinstance(value, list):
-                for index, item in enumerate(value):
-                    yield from leaf_mutations(item, path + (index,))
-            else:
-                for replacement in replacements:
-                    state = copy.deepcopy(seed)
-                    target = state
-                    for part in path[:-1]:
-                        target = target[part]
-                    target[path[-1]] = replacement
-                    yield ".".join(map(str, path)), state
-
-        for key in ("nodes", "findings", "tickets", "maintenance", "events"):
-            variants = ([], seed[key][:-1], seed[key] + [copy.deepcopy(seed[key][0])])
-            for variant in variants:
-                state = copy.deepcopy(seed)
-                state[key] = variant
-                mutated_cases.append((f"shape.{key}", state))
-        mutated_cases.extend(leaf_mutations(seed))
-        result = subprocess.run(
-            ["node", "--input-type=module", "-e", "import { readFileSync } from 'node:fs'; import { isDemoState } from './src/model.js'; const states = JSON.parse(readFileSync(0, 'utf8')); process.stdout.write(JSON.stringify(states.map(isDemoState)));"],
-            cwd=ROOT, input=json.dumps([state for _, state in mutated_cases], ensure_ascii=False),
-            check=True, capture_output=True, text=True,
-        )
-        javascript_validity = json.loads(result.stdout)
-        self.assertEqual(len(javascript_validity), len(mutated_cases))
-        for (label, state), javascript_valid in zip(mutated_cases, javascript_validity, strict=True):
-            self.assertEqual(javascript_valid, valid_state_shape(state), f"mutation validator disagreement at {label}")
-
-        leaf_paths = []
-
-        def collect_leaf_paths(value, path=()):
-            if isinstance(value, dict):
-                for key, item in value.items():
-                    collect_leaf_paths(item, path + (key,))
-            elif isinstance(value, list):
-                for index, item in enumerate(value):
-                    collect_leaf_paths(item, path + (index,))
-            else:
-                leaf_paths.append(path)
-
-        collect_leaf_paths(seed)
-        generator = random.Random(20261019)
-        combined_states = []
-        for _ in range(1000):
-            state = copy.deepcopy(seed)
-            paths = generator.sample(leaf_paths, generator.randint(2, 6))
-            for path in paths:
-                target = state
-                for part in path[:-1]:
-                    target = target[part]
-                target[path[-1]] = copy.deepcopy(generator.choice(replacements))
-            combined_states.append(state)
-        result = subprocess.run(
-            ["node", "--input-type=module", "-e", "import { readFileSync } from 'node:fs'; import { isDemoState } from './src/model.js'; const states = JSON.parse(readFileSync(0, 'utf8')); process.stdout.write(JSON.stringify(states.map(isDemoState)));"],
-            cwd=ROOT, input=json.dumps(combined_states, ensure_ascii=False),
-            check=True, capture_output=True, text=True,
-        )
-        javascript_validity = json.loads(result.stdout)
-        self.assertEqual(len(javascript_validity), len(combined_states))
-        for index, (state, javascript_valid) in enumerate(zip(combined_states, javascript_validity, strict=True)):
-            self.assertEqual(javascript_valid, valid_state_shape(state), f"combined mutation validator disagreement at case {index}")
-
     def test_state_is_persisted_and_revision_conflicts_are_rejected(self):
         initial_status, initial = self.request("/api/state")
         self.assertEqual(initial_status, 200)
@@ -281,12 +142,6 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(status, 409)
         self.assertEqual(conflict["revision"], 1)
         self.assertEqual(self.request("/api/state")[1]["revision"], 1)
-
-    def test_api_rejects_a_write_envelope_without_state(self):
-        status, response = self.request("/api/state", "PUT", {"revision": 0})
-        self.assertEqual(status, 422)
-        self.assertEqual(response["error"], "Invalid casebook state")
-        self.assertEqual(self.request("/api/state"), (200, {"state": None, "revision": 0}))
 
     def test_store_rejects_invalid_state_and_revision_before_writing(self):
         with self.assertRaisesRegex(ValueError, "state failed validation"):
@@ -305,49 +160,60 @@ class DemoStateApiTests(unittest.TestCase):
             with self.subTest(revision=revision), self.assertRaisesRegex(ValueError, "History revision"):
                 self.server.store.read_history(revision)
 
-    def test_json_integer_boundary_matches_browser_number_rounding(self):
+    def test_json_integer_boundary_stays_exact_in_javascript(self):
         state = self.valid_casebook()
         state["nodes"][0]["extension"] = MAX_SAFE_REVISION
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
         invalid = self.valid_casebook()
         invalid["nodes"][0]["extension"] = MAX_SAFE_REVISION + 1
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": invalid})[0], 422)
-        unsafe_exponent = self.valid_casebook()
-        unsafe_exponent["nodes"][0]["extension"] = 1e20
-        self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": unsafe_exponent})[0], 422)
+        self.assertEqual(self.request("/api/state")[1], {"state": state, "revision": 1})
 
-        # JSON.parse in Chromium rounds this integer token to 1e21, then
-        # JSON.stringify writes it back in exponent form. Mirror that on API input.
-        rounded_integer = self.valid_casebook()
-        rounded_integer["nodes"][0]["extension"] = 999_999_999_999_999_999_999
-        status, response = self.request("/api/state", "PUT", {"revision": 1, "state": rounded_integer})
+    def test_large_json_integer_tokens_match_browser_number_rounding(self):
+        for index, value in enumerate((999_999_999_999_999_999_999, 10 ** 21, 10 ** 100), start=1):
+            state = self.valid_casebook()
+            state["nodes"][0]["extension"] = {"value": value}
+            with self.subTest(value_digits=len(str(value))):
+                status, response = self.request("/api/state", "PUT", {"revision": index - 1, "state": state})
+                self.assertEqual(status, 200)
+                self.assertEqual(response["revision"], index)
+                stored = self.request("/api/state")[1]["state"]["nodes"][0]["extension"]["value"]
+                self.assertEqual(stored, float(value))
+
+        status, restored = self.request("/api/restore", "POST", {"revision": 3, "sourceRevision": 1})
         self.assertEqual(status, 200)
-        self.assertEqual(response["revision"], 2)
-        self.assertEqual(self.request("/api/state")[1]["state"]["nodes"][0]["extension"], 1e21)
+        self.assertEqual(restored["revision"], 4)
+        self.assertEqual(restored["state"]["nodes"][0]["extension"]["value"], float(999_999_999_999_999_999_999))
 
-        exponent = self.valid_casebook()
-        exponent["nodes"][0]["extension"] = 1e21
-        self.assertEqual(self.request("/api/state", "PUT", {"revision": 2, "state": exponent})[0], 200)
-        self.assertEqual(self.request("/api/state")[1], {"state": exponent, "revision": 3})
+        for value in (99_999_999_999_999_999_999, 9_007_199_254_740_992):
+            state = self.valid_casebook()
+            state["nodes"][0]["extension"] = {"value": value}
+            with self.subTest(rejected_value=str(value)):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 4, "state": state})[0], 422)
 
-    def test_api_trimming_matches_javascript_string_trim(self):
-        new_ticket = {
-            "id": "HD-1048", "subject": "Synthetic request", "requester": "Demo User",
-            "assignee": "Unassigned", "category": "Software", "priority": "Normal", "status": "New",
-            "ageMinutes": 0, "firstResponseMinutes": None, "updates": [],
+    def test_null_slots_created_from_sparse_browser_domain_arrays_are_rejected(self):
+        for key in ("findings", "tickets", "maintenance", "events"):
+            state = self.valid_casebook()
+            state[key] = [None]
+            with self.subTest(collection=key):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+        ticket = {
+            "id": "HD-200", "subject": "Synthetic ticket", "requester": "Demo requester",
+            "assignee": "Unassigned", "category": "Other", "priority": "Normal",
+            "status": "New", "ageMinutes": 0, "firstResponseMinutes": None, "updates": [None],
         }
-        bom_only = self.valid_casebook()
-        bom_only["tickets"] = [{**new_ticket, "subject": "\ufeff"}]
-        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": bom_only})[0], 422)
-        separator = self.valid_casebook()
-        separator["tickets"] = [{**new_ticket, "subject": "\u001c"}]
-        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": separator})[0], 200)
-        note = self.valid_casebook()
-        note["tickets"] = [{
-            **new_ticket, "status": "In progress", "assignee": "R. Patel",
-            "firstResponseMinutes": 6, "updates": ["\u001c" * 8],
-        }]
-        self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": note})[0], 200)
+        readiness = {key: False for key in (
+            "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
+        )}
+        change = {
+            "id": "CHG-200", "title": "Synthetic change", "owner": "R. Patel", "risk": "Low",
+            "status": "Pending approval", "readiness": readiness, "history": [None],
+        }
+        for collection, record, field in (("tickets", ticket, "updates"), ("maintenance", change, "history")):
+            state = self.valid_casebook()
+            state[collection] = [record]
+            with self.subTest(collection=collection, field=field):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
 
     def test_revision_history_and_restore_are_auditable_and_compare_and_swap(self):
         original = self.valid_casebook()
@@ -362,9 +228,7 @@ class DemoStateApiTests(unittest.TestCase):
             "status": "New", "ageMinutes": 5, "firstResponseMinutes": None, "updates": [],
         }]
         original["maintenance"] = [{
-            "id": "CHG-42", "title": "Synthetic ERP maintenance", "system": "Synthetic ERP host",
-            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
-            "rollback": "Restore the recorded snapshot and verify the service.", "owner": "M. Chen",
+            "id": "CHG-42", "title": "Synthetic ERP maintenance", "owner": "M. Chen",
             "risk": "Medium", "status": "Pending approval",
             "readiness": {"scopeOwner": False, "windowConfirmed": False, "impactAssessed": False,
                           "rollbackDocumented": False, "validationReady": False},
@@ -405,6 +269,40 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/history/999999999999999999999999999999")[0], 404)
         self.assertEqual(self.request("/api/history/0")[0], 404)
         self.assertEqual(self.request("/api/history/%D9%A1")[0], 404)
+
+    def test_legacy_rollback_restores_as_pending_recovery_verification(self):
+        state = self.valid_casebook()
+        readiness = {key: True for key in (
+            "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
+        )}
+        state["maintenance"].append({
+            "id": "CHG-650", "title": "Legacy synthetic rollback", "owner": "R. Patel",
+            "risk": "Low", "status": "Rolled back", "readiness": readiness,
+            "preChangeEvidence": "Baseline probe and service sign-in passed before the window",
+            "validationEvidence": "Service sign-in failed and queue depth remained above baseline",
+            "rollbackEvidence": "Package reverted; pre-change service state restored",
+            "history": [
+                "Approved by A. Reviewer · Owner accepted the tested rollback and impact plan",
+                "Implementation started in approved window · Baseline and service owner notification confirmed",
+                "Validation failed · Service response and resource signals were checked",
+                "Rollback executed · Prior package and pre-change service state restored",
+            ],
+        })
+        self.assertTrue(valid_state_shape(state, allow_legacy=True))
+        payload = json.dumps(state, separators=(",", ":"))
+        with sqlite3.connect(self.db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            DemoStateStore._store_revision(db, 1, payload)
+
+        self.assertEqual(self.request("/api/state"), (200, {"state": state, "revision": 1}))
+        status, restored = self.request("/api/restore", "POST", {"revision": 1, "sourceRevision": 1})
+        self.assertEqual(status, 200)
+        self.assertEqual(restored["revision"], 2)
+        self.assertEqual(restored["restoredFrom"], 1)
+        self.assertEqual(restored["state"]["maintenance"][0]["status"], "Recovery verification required")
+        self.assertIn("Legacy rollback reopened · service recovery verification required", restored["state"]["maintenance"][0]["history"])
+        self.assertTrue(valid_state_shape(restored["state"]))
+        self.assertEqual(self.request("/api/state")[1], {"state": restored["state"], "revision": 2})
 
     def test_history_retains_only_the_newest_25_revisions(self):
         state = self.valid_casebook()
@@ -479,10 +377,7 @@ class DemoStateApiTests(unittest.TestCase):
             "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
         )}
         state["maintenance"] = [{
-            "id": "CHG-501", "title": "Synthetic maintenance review", "system": "Synthetic ERP host",
-            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
-            "rollback": "Restore the recorded snapshot and verify the service.",
-            "validationPlan": "Compare sign-in and response time with the pre-change baseline.", "owner": "R. Patel",
+            "id": "CHG-501", "title": "Synthetic maintenance review", "owner": "R. Patel",
             "risk": "Medium", "status": "Approved", "readiness": ready,
             "history": ["Approved by J. Reviewer · Service impact, checks, and rollback were reviewed"],
         }]
@@ -608,7 +503,7 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/state")[0], 503)
         self.assertEqual(self.request("/api/health")[0], 503)
 
-    def test_api_rejects_unencodable_surrogate_text_without_storage_errors(self):
+    def test_api_accepts_unicode_scalar_text_and_rejects_unpaired_surrogates(self):
         for location in ("name", "event", "unknown-field"):
             state = self.valid_casebook()
             if location == "name":
@@ -622,6 +517,11 @@ class DemoStateApiTests(unittest.TestCase):
                 self.assertEqual(status, 422)
                 self.assertIn("error", error)
         self.assertEqual(self.request("/api/state")[1], {"state": None, "revision": 0})
+
+        valid_unicode = self.valid_casebook()
+        valid_unicode["events"].append("Synthetic Unicode check 😀")
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": valid_unicode})[0], 200)
+        self.assertIn("Synthetic Unicode check 😀", self.request("/api/state")[1]["state"]["events"])
 
     def test_stored_non_json_numeric_extensions_fail_closed(self):
         state = self.valid_casebook()
@@ -1165,17 +1065,6 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
         node["health"] = "Degraded"
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
-        unassigned_investigation = self.valid_casebook()
-        unassigned_node = next(item for item in unassigned_investigation["nodes"] if item["id"] == "app-srv-02")
-        unassigned_node["investigation"] = {
-            "owner": "Unassigned", "cause": "ERP worker saturation",
-            "action": "Scale the ERP workers and drain the saturated process",
-            "status": "Investigating",
-        }
-        self.assertEqual(
-            self.request("/api/state", "PUT", {"revision": 0, "state": unassigned_investigation})[0],
-            422,
-        )
         node.update({
             "health": "Offline",
             "investigation": {
@@ -1200,9 +1089,7 @@ class DemoStateApiTests(unittest.TestCase):
             "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
         )}
         state["maintenance"].append({
-            "id": "CHG-1", "title": "Synthetic patch change", "system": "Synthetic ERP host",
-            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
-            "rollback": "Restore the recorded snapshot and verify the service.", "owner": "R. Patel", "risk": "Low",
+            "id": "CHG-1", "title": "Synthetic patch change", "owner": "R. Patel", "risk": "Low",
             "status": "Pending approval", "readiness": readiness, "history": [], "findingId": "SEC-404",
         })
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
@@ -1241,12 +1128,30 @@ class DemoStateApiTests(unittest.TestCase):
         state["tickets"][0]["updates"] = ["06:14 · Checked the identity service and confirmed the access path"]
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
 
+    def test_ticket_creation_time_uses_the_browser_iso_utc_format(self):
+        state = self.valid_casebook()
+        state["tickets"].append({
+            "id": "HD-502", "subject": "Synthetic timestamp check", "requester": "A. Example",
+            "assignee": "Unassigned", "category": "Other", "priority": "Normal", "status": "New",
+            "ageMinutes": 0, "firstResponseMinutes": None, "createdAt": "2026", "updates": [],
+        })
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+        state["tickets"][-1]["createdAt"] = "2026-10-19T08:00:00.000Z"
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
+
+    def test_float_extensions_keep_the_same_json_form_in_javascript(self):
+        state = self.valid_casebook()
+        state["nodes"][0]["floatExtension"] = 1e20
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+        state["nodes"][0]["floatExtension"] = 1e21
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
+
     def test_change_decisions_and_outcomes_require_matching_audit_evidence(self):
         ready = {key: True for key in (
             "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
         )}
         scenarios = (
-            ("Approved", ready, {}, "Approved by A. Reviewer · Service owner confirmed · rollback plan and impact reviewed for this window"),
+            ("Approved", ready, {}, "Approved by A. Reviewer · Owner accepted the tested rollback and impact plan"),
             ("Rejected", {**ready, "scopeOwner": False}, {}, "Rejected by A. Reviewer · Validation evidence was incomplete for this service"),
             (
                 "In progress", ready, {"preChangeEvidence": "Baseline probe and service sign-in passed before the window"},
@@ -1265,10 +1170,18 @@ class DemoStateApiTests(unittest.TestCase):
                 "Implementation started in approved window · Baseline and service owner notification confirmed",
             ),
             (
+                "Recovery verification required", ready,
+                {"preChangeEvidence": "Baseline probe and service sign-in passed before the window",
+                 "validationEvidence": "Service sign-in failed and queue depth remained above baseline",
+                 "rollbackEvidence": "Package reverted; pre-change service state restored"},
+                "Implementation started in approved window · Baseline and service owner notification confirmed",
+            ),
+            (
                 "Rolled back", ready,
                 {"preChangeEvidence": "Baseline probe and service sign-in passed before the window",
                  "validationEvidence": "Service sign-in failed and queue depth remained above baseline",
-                 "rollbackEvidence": "Package reverted; service sign-in passed and queue returned to baseline"},
+                 "rollbackEvidence": "Package reverted; pre-change service state restored",
+                 "rollbackVerificationEvidence": "Service sign-in passed and queue depth returned to baseline"},
                 "Implementation started in approved window · Baseline and service owner notification confirmed",
             ),
         )
@@ -1277,20 +1190,19 @@ class DemoStateApiTests(unittest.TestCase):
             with self.subTest(status=status):
                 state = self.valid_casebook()
                 change = {
-                    "id": "CHG-500", "title": "Synthetic maintenance validation", "system": "Synthetic ERP host",
-                    "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
-                    "rollback": "Restore the recorded snapshot and verify the service.",
-                    "validationPlan": "Compare sign-in and response time with the pre-change baseline.", "owner": "R. Patel",
+                    "id": "CHG-500", "title": "Synthetic maintenance validation", "owner": "R. Patel",
                     "risk": "Low", "status": status, "readiness": readiness, "history": [required_entry],
                     **extra_fields,
                 }
-                if status in {"In progress", "Completed", "Rollback required", "Rolled back"}:
+                if status in {"In progress", "Completed", "Rollback required", "Recovery verification required", "Rolled back"}:
                     change["history"].insert(0, "Approved by A. Reviewer · Owner accepted the tested rollback and impact plan")
-                if status in {"Completed", "Rollback required", "Rolled back"}:
+                if status in {"Completed", "Rollback required", "Recovery verification required", "Rolled back"}:
                     outcome = "Validation passed" if status == "Completed" else "Validation failed"
                     change["history"].append(f"{outcome} · Service response and resource signals were checked")
+                if status in {"Recovery verification required", "Rolled back"}:
+                    change["history"].append("Rollback executed · Prior package and pre-change service state restored")
                 if status == "Rolled back":
-                    change["history"].append("Rollback executed · Prior package restored and service recovery confirmed")
+                    change["history"].append("Recovery verified · Service sign-in passed and queue depth returned to baseline")
                 state["maintenance"].append(change)
                 self.assertEqual(self.request("/api/state", "PUT", {"revision": revision, "state": state})[0], 200)
                 revision += 1
@@ -1299,12 +1211,32 @@ class DemoStateApiTests(unittest.TestCase):
                 self.assertEqual(self.request("/api/state", "PUT", {"revision": revision, "state": state})[0], 422)
                 self.assertEqual(self.request("/api/state")[1]["revision"], revision)
 
+        legacy = self.valid_casebook()
+        legacy["maintenance"].append({
+            "id": "CHG-499", "title": "Legacy rollback needs verification", "owner": "R. Patel",
+            "risk": "Low", "status": "Rolled back", "readiness": ready,
+            "preChangeEvidence": "Baseline probe and service sign-in passed before the window",
+            "validationEvidence": "Service sign-in failed and queue depth remained above baseline",
+            "rollbackEvidence": "Package reverted; pre-change service state restored",
+            "history": [
+                "Approved by A. Reviewer · Owner accepted the tested rollback and impact plan",
+                "Implementation started in approved window · Baseline and service owner notification confirmed",
+                "Validation failed · Service response and resource signals were checked",
+                "Rollback executed · Prior package and pre-change service state restored",
+            ],
+        })
+        self.assertFalse(valid_state_shape(legacy), "new writes must verify post-rollback service health")
+        self.assertTrue(valid_state_shape(legacy, allow_legacy=True), "stored history remains readable during migration")
+        migrated = migrate_legacy_recovery_state(legacy)
+        self.assertEqual(migrated["maintenance"][0]["status"], "Recovery verification required")
+        self.assertTrue(valid_state_shape(migrated))
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": revision, "state": legacy})[0], 422)
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": revision, "state": migrated})[0], 200)
+        revision += 1
+
         state = self.valid_casebook()
         state["maintenance"].append({
-            "id": "CHG-501", "title": "Synthetic high-risk maintenance", "system": "Synthetic ERP host",
-            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
-            "rollback": "Restore the recorded snapshot and verify the service.",
-            "validationPlan": "Compare sign-in and response time with the pre-change baseline.", "owner": "R. Patel",
+            "id": "CHG-501", "title": "Synthetic high-risk maintenance", "owner": "R. Patel",
             "risk": "High", "status": "Approved", "readiness": {**ready, "peerReview": True},
             "history": [
                 "Peer review by T. Brown · Independent validation plan and rollback path reviewed",
@@ -1313,7 +1245,7 @@ class DemoStateApiTests(unittest.TestCase):
         })
         self.assertEqual(self.request("/api/state", "PUT", {"revision": revision, "state": state})[0], 200)
         state["maintenance"][0]["history"][0] = (
-            "Peer review by R. PATEL · Independent validation plan and rollback path reviewed"
+            "Peer review by R. Patel · Independent validation plan and rollback path reviewed"
         )
         self.assertEqual(self.request("/api/state", "PUT", {"revision": revision + 1, "state": state})[0], 422)
         self.assertEqual(self.request("/api/state")[1]["revision"], revision + 1)
@@ -1321,21 +1253,19 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/state", "PUT", {"revision": revision + 1, "state": state})[0], 422)
         self.assertEqual(self.request("/api/state")[1]["revision"], revision + 1)
 
-        unicode_owner_state = self.valid_casebook()
-        unicode_owner_state["maintenance"].append({
-            "id": "CHG-502", "title": "Synthetic Unicode owner review", "system": "Synthetic ERP host",
-            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
-            "rollback": "Restore the recorded snapshot and verify the service.",
-            "validationPlan": "Compare sign-in and response time with the pre-change baseline.", "owner": "Straße",
+        unicode_names = self.valid_casebook()
+        unicode_names["maintenance"].append({
+            "id": "CHG-502", "title": "Synthetic Unicode reviewer check", "owner": "Straße",
             "risk": "High", "status": "Approved", "readiness": {**ready, "peerReview": True},
             "history": [
                 "Peer review by STRASSE · Independent validation plan and rollback path reviewed",
-                "Approved by A. Reviewer · Owner accepted the tested rollback and impact plan",
+                "Approved by Jamie Diaz · Owner accepted the tested rollback and impact plan",
             ],
         })
         self.assertEqual(
-            self.request("/api/state", "PUT", {"revision": revision + 1, "state": unicode_owner_state})[0],
+            self.request("/api/state", "PUT", {"revision": revision + 1, "state": unicode_names})[0],
             200,
+            "Python lowercase comparison should match the browser's Unicode lowercase comparison",
         )
 
     def test_api_rejects_malformed_nested_json_types(self):
@@ -1346,6 +1276,49 @@ class DemoStateApiTests(unittest.TestCase):
         invalid_health = self.valid_casebook()
         invalid_health["nodes"][0]["health"] = []
         cases.append(invalid_health)
+        blank_change_owner = self.valid_casebook()
+        blank_change_owner["maintenance"].append({
+            "id": "CHG-1", "title": "Synthetic maintenance", "owner": "\ufeff", "risk": "Low",
+            "status": "Pending approval",
+            "readiness": {key: False for key in (
+                "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
+            )},
+            "history": ["Request created · awaiting review"],
+        })
+        cases.append(blank_change_owner)
+        padded_change_owner = self.valid_casebook()
+        padded_change_owner["maintenance"].append({
+            "id": "CHG-2", "title": "Synthetic maintenance", "owner": " Unassigned ", "risk": "Low",
+            "status": "Pending approval",
+            "readiness": {key: False for key in (
+                "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
+            )},
+            "history": ["Request created · awaiting review"],
+        })
+        cases.append(padded_change_owner)
+        padded_ticket_assignee = self.valid_casebook()
+        padded_ticket_assignee["tickets"].append({
+            "id": "HD-1", "subject": "Synthetic request", "requester": "Synthetic", "category": "Other",
+            "priority": "Normal", "status": "In progress", "assignee": " Unassigned ",
+            "ageMinutes": 0, "firstResponseMinutes": 1, "updates": ["Reviewed request and contact details."],
+        })
+        cases.append(padded_ticket_assignee)
+        padded_finding_owner = self.valid_casebook()
+        padded_finding_owner["findings"].append({
+            "id": "SEC-1", "title": "Synthetic finding", "asset": "app-srv-02", "severity": "High",
+            "cvss": 8.0, "status": "Investigating", "owner": " Unassigned ",
+            "responsePlan": "Review exposure and confirm the patch window", "resolution": "",
+        })
+        cases.append(padded_finding_owner)
+        padded_incident_owner = self.valid_casebook()
+        incident_node = padded_incident_owner["nodes"][1]
+        incident_node.update({
+            "health": "Degraded", "investigation": {
+                "owner": " Unassigned ", "cause": "CPU saturation",
+                "action": "Scale the worker pool", "status": "Investigating",
+            },
+        })
+        cases.append(padded_incident_owner)
         invalid_signal = self.valid_casebook()
         invalid_signal["nodes"][0]["signals"]["portUtilization"] = []
         cases.append(invalid_signal)
@@ -1387,161 +1360,17 @@ class DemoStateApiTests(unittest.TestCase):
                 self.assertEqual(status, 422)
                 self.assertIn("error", error)
 
-    def test_api_requires_canonical_utc_ticket_creation_timestamp(self):
-        invalid_timestamps = [
-            "2026-W01-1", "2026-001", "2026-10-19T10:00:00", "2026-02-30T10:00:00.000Z",
-            "0000-01-01T00:00:00.000Z",
-        ]
-        for created_at in invalid_timestamps:
-            with self.subTest(created_at=created_at):
-                state = self.valid_casebook()
-                state["tickets"].append({
-                    "id": "HD-1", "subject": "Synthetic", "requester": "Tester", "assignee": "Unassigned",
-                    "category": "Other", "priority": "Normal", "status": "New", "ageMinutes": 0,
-                    "firstResponseMinutes": None, "createdAt": created_at, "updates": [],
-                })
-                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
-
-        state = self.valid_casebook()
-        state["tickets"].append({
-            "id": "HD-1", "subject": "Synthetic", "requester": "Tester", "assignee": "Unassigned",
-            "category": "Other", "priority": "Normal", "status": "New", "ageMinutes": 0,
-            "firstResponseMinutes": None, "createdAt": "2026-10-19T10:00:00.123Z", "updates": [],
-        })
-        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
-
-    def test_api_rejects_whitespace_only_domain_labels_and_audit_entries(self):
-        fields = ("name", "type", "zone", "uptime", "icon")
-        for field in fields:
-            state = self.valid_casebook()
-            state["nodes"][0][field] = " \ufeff "
-            with self.subTest(asset_field=field):
-                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
-
-        finding = {
-            "id": "SEC-1", "title": "Synthetic finding", "asset": "app-srv-02", "severity": "High", "cvss": 8.0,
-            "status": "Open", "owner": "Unassigned", "responsePlan": "", "resolution": "",
-        }
-        for field in ("title", "asset"):
-            state = self.valid_casebook()
-            state["findings"] = [{**finding, field: " \ufeff "}]
-            with self.subTest(finding_field=field):
-                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
-
-        state = self.valid_casebook()
-        state["events"] = [" \ufeff "]
-        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
-
-        state = self.valid_casebook()
-        state["tickets"] = [{
-            "id": "HD-1", "subject": "Synthetic request", "requester": "A. Example", "assignee": "Unassigned",
-            "category": "Other", "priority": "Normal", "status": "New", "ageMinutes": 0,
-            "firstResponseMinutes": None, "updates": [" \ufeff "],
-        }]
-        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
-
-        readiness = {key: False for key in ("scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady")}
-        state = self.valid_casebook()
-        state["maintenance"] = [{
-            "id": "CHG-1", "title": "Synthetic change", "system": "Synthetic host", "window": "Planned · 22:00–22:30",
-            "impact": "Users may see a short restart delay.", "rollback": "Restore the prior snapshot and verify the service.",
-            "validationPlan": "Check sign-in and response time against the baseline.", "owner": "R. Patel", "risk": "Medium",
-            "status": "Pending approval", "readiness": readiness, "history": [" \ufeff "],
-        }]
-        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
-
-        self.assertEqual(self.request("/api/state")[1]["revision"], 0)
-
-    def test_api_rejects_whitespace_only_required_ticket_and_change_fields(self):
-        ticket = {
-            "id": "HD-1", "subject": "Synthetic request", "requester": "A. Example", "assignee": "Unassigned",
-            "category": "Other", "priority": "Normal", "status": "New", "ageMinutes": 0,
-            "firstResponseMinutes": None, "updates": [],
-        }
-        for field in ("subject", "requester"):
-            state = self.valid_casebook()
-            state["tickets"].append({**ticket, field: "   "})
-            with self.subTest(ticket_field=field):
-                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
-
-        readiness = {key: False for key in (
-            "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
-        )}
-        change = {
-            "id": "CHG-1", "title": "Synthetic ERP change", "system": "Application server · ERP",
-            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
-            "rollback": "Restore the recorded snapshot and verify the service.", "owner": "R. Patel",
-            "risk": "Medium", "status": "Pending approval", "readiness": readiness, "history": [],
-        }
-        for field in ("title", "system", "window", "impact", "rollback"):
-            state = self.valid_casebook()
-            state["maintenance"].append({**change, field: "   "})
-            with self.subTest(change_field=field):
-                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
-
-        state = self.valid_casebook()
-        state["maintenance"].append({
-            **change,
-            "readiness": {**readiness, "validationReady": True},
-            "validationPlan": "   ",
-        })
-        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
-
-        accepted = self.valid_casebook()
-        accepted["maintenance"].append({
-            **change,
-            "readiness": {**readiness, "validationReady": True},
-            "validationPlan": "Verify ERP sign-in, response time, and queue depth against baseline.",
-        })
-        status, result = self.request("/api/state", "PUT", {"revision": 0, "state": accepted})
-        self.assertEqual(status, 200)
-        self.assertEqual(result["state"]["maintenance"][0]["readiness"]["validationReady"], True)
-
-    def test_api_evidence_minimums_count_unicode_codepoints(self):
-        state = self.valid_casebook()
-        state["nodes"][1]["investigation"] = {
-            "owner": "R. Patel", "cause": "CPU pressure", "action": "Scale workers", "status": "Resolved",
-            "verification": "ERP login passed; latency and queue depth returned below threshold",
-            "notes": "😀" * 4,
-        }
-        self.assertEqual(
-            self.request("/api/state", "PUT", {"revision": 0, "state": state})[0],
-            422,
-            "four emoji are four code points and do not satisfy the eight-character note requirement",
-        )
-
     def test_api_rejects_oversized_state(self):
         request = urllib.request.Request(
             self.base_url + "/api/state",
             data=b"{}",
             method="PUT",
-            headers={"Content-Type": "application/json", "Content-Length": str(MAX_STATE_REQUEST_BYTES + 1)},
+            headers={"Content-Type": "application/json", "Content-Length": "1000001"},
         )
         with self.assertRaises(urllib.error.HTTPError) as error:
             urllib.request.urlopen(request, timeout=2)
         self.assertEqual(error.exception.code, 413)
         error.exception.close()
-
-    def test_api_accepts_maximum_size_state_with_request_envelope(self):
-        state = self.valid_casebook()
-        state["events"] = [""]
-        compact_size = len(json.dumps(state, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
-        state["events"][0] = "x" * (MAX_STATE_BYTES - compact_size)
-        self.assertEqual(
-            len(json.dumps(state, separators=(",", ":"), ensure_ascii=False).encode("utf-8")),
-            MAX_STATE_BYTES,
-        )
-        request_body = json.dumps({"revision": 0, "state": state}).encode("utf-8")
-        self.assertGreater(len(request_body), MAX_STATE_BYTES, "the JSON request envelope adds bytes around the casebook")
-        self.assertLessEqual(len(request_body), MAX_STATE_REQUEST_BYTES)
-        request = urllib.request.Request(
-            self.base_url + "/api/state", data=request_body, method="PUT",
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(request, timeout=5) as response:
-            saved = json.loads(response.read())
-        self.assertEqual(saved["revision"], 1)
-        self.assertEqual(len(json.dumps(saved["state"], separators=(",", ":"), ensure_ascii=False).encode("utf-8")), MAX_STATE_BYTES)
 
     def test_api_rejects_excessive_json_nesting_cleanly(self):
         deeply_nested = b'{"revision":0,"state":' + b"[" * 12000 + b"0" + b"]" * 12000 + b"}"

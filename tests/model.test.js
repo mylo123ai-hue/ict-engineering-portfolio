@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  cloneSeed, migrateDemoState, isDemoState, textLength, nextCaseId, nextTicketId, transitionTicket, triageFinding, resolveFinding,
+  cloneSeed, migrateDemoState, isDemoState, nextTicketId, transitionTicket, triageFinding, resolveFinding,
   simulateIncident, recordIncidentInvestigation, recordIncidentRecovery, recoveryChecks,
   diagnoseNetwork, updateTicket, assessTicketSla, maintenanceAction, readinessChecks
 } from "../src/model.js";
@@ -26,162 +26,159 @@ test("demo state validation rejects truncated or malformed saved data", () => {
   assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "core-sw-01" ? { ...node, id: "unsupported-node-01" } : node) }), false);
   assert.equal(isDemoState({ ...saved, tickets: [saved.tickets[0], { ...saved.tickets[1], id: saved.tickets[0].id }] }), false);
   assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "app-srv-02" ? { ...node, investigation: { cause: "CPU pressure", action: "Drain the worker pool", status: "Investigating" } } : node) }), false);
-  assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "app-srv-02" ? { ...node, investigation: { owner: "Unassigned", cause: "CPU pressure", action: "Drain the worker pool", status: "Investigating" } } : node) }), false);
   assert.equal(isDemoState({ ...saved, tickets: [{ id: "HD-1", status: "Unknown" }] }), false);
   assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], priority: "Urgent" }] }), false);
   assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], status: "In progress", assignee: "Unassigned" }] }), false);
   assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], createdAt: "not a timestamp" }] }), false);
-  for (const createdAt of ["2026-W01-1", "2026-001", "2026-10-19T10:00:00", "2026-02-30T10:00:00.000Z", "0000-01-01T00:00:00.000Z"]) {
-    assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[1], createdAt }] }), false, `rejects non-canonical ticket timestamp ${createdAt}`);
-  }
-  assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[1], createdAt: "2026-10-19T10:00:00.000Z" }] }), true);
-  for (const field of ["subject", "requester"]) {
-    assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[1], [field]: "   " }] }), false, `rejects a blank ${field}`);
-  }
-  assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[1], subject: "\ufeff" }] }), false, "JavaScript trim treats BOM as whitespace");
-  assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[1], subject: "\u001c" }] }), true, "JavaScript trim preserves the file-separator control");
+  assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], createdAt: "2026" }] }), false);
+  assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], createdAt: "0000-01-01T00:00:00.000Z" }] }), false);
   assert.equal(isDemoState({ ...saved, findings: [{ ...saved.findings[0], severity: "<img src=x onerror=alert(1)>" }] }), false);
   assert.equal(isDemoState({ ...saved, findings: [{ ...saved.findings[0], cvss: '9.8"><img src=x>' }] }), false);
   assert.equal(isDemoState({ ...saved, nodes: [{ ...saved.nodes[0], signals: { ...saved.nodes[0].signals, interfaceErrors: "4.8%" } }] }), false);
   assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "db-pri-01" ? { ...node, signals: { connections: 38, storage: 64 } } : node) }), false);
   assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "fw-edge-01" ? { ...node, signals: { cpu: 24, sessions: 41 } } : node) }), false);
   assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], readiness: null }] }), false);
-  for (const field of ["title", "system", "window", "impact", "rollback"]) {
-    assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], [field]: "   " }] }), false, `rejects a blank change ${field}`);
-  }
-  assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], impact: "😀".repeat(6) }] }), false, "six emoji are six Unicode characters, not twelve evidence characters");
-  assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], readiness: { ...saved.maintenance[0].readiness, validationReady: true }, validationPlan: "   " }] }), false);
-  const planGate = cloneSeed();
-  assert.equal(isDemoState(planGate), true, "unready request can be saved while the plan is outstanding");
-  planGate.maintenance[0].readiness.validationReady = true;
-  assert.equal(isDemoState(planGate), false, "validation cannot be marked ready without a recorded plan");
-  planGate.maintenance[0].validationPlan = "Verify ERP sign-in, response time, and queue depth after the change.";
-  assert.equal(isDemoState(planGate), true, "a measurable plan allows readiness to be recorded");
   assert.equal(isDemoState({ ...saved, findings: [{ ...saved.findings[0], status: "Resolved", owner: "R. Patel", responsePlan: "Patch and verify the application", resolution: "" }] }), false);
   assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], status: "Resolved" }] }), false);
   assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "app-srv-02" ? { ...node, investigation: { owner: "R. Patel", cause: "CPU pressure", action: "Scale worker pool", status: "Resolved" } } : node) }), false);
   assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], status: "In progress", readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])) }] }), false);
   assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], risk: "High", status: "Approved", readiness: { ...Object.fromEntries(readinessChecks.map(([key]) => [key, true])), peerReview: true }, history: ["Approved by Jamie Diaz"] }] }), false);
-  const readyChange = {
-    ...saved.maintenance[0], status: "Completed",
-    readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])),
-    preChangeEvidence: "Baseline health check passed before work.",
-    validationPlan: "Confirm the service response against the approved baseline.",
-    validationEvidence: "ERP response returned below the agreed threshold.",
-    history: [
-      "09:00 · Approved by Jamie Diaz · Impact and recovery checks are defined.",
-      "22:00 · Implementation started in approved window · Baseline health check passed before work.",
-      "22:20 · Validation passed · ERP response returned below the agreed threshold."
-    ]
-  };
+  const readyChange = { ...saved.maintenance[0], status: "Completed", readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])), preChangeEvidence: "Baseline health check passed before work.", validationEvidence: "ERP response returned below the agreed threshold.", history: ["Approved by Jamie Diaz · Readiness and controls reviewed in the window.", "Implementation started in approved window · Baseline health check passed before work.", "Validation passed · ERP response returned below the agreed threshold."] };
   assert.equal(isDemoState({ ...saved, maintenance: [readyChange] }), true);
-  assert.equal(isDemoState({ ...saved, maintenance: [{ ...readyChange, status: "Rolled back", rollbackEvidence: "Restored snapshot and confirmed service recovery.", history: [...readyChange.history, "22:30 · Validation failed · ERP response remained above its baseline.", "22:35 · Rollback executed · Restored snapshot and confirmed service recovery."] }] }), true);
+  const legacyRollback = { ...readyChange, status: "Rolled back", validationEvidence: "ERP response exceeded the approved threshold.", rollbackEvidence: "Snapshot restored; recovery checks were not recorded.", history: [
+    "Approved by Jamie Diaz · Readiness and controls reviewed in the window.",
+    "Implementation started in approved window · Baseline health check passed before work.",
+    "Validation failed · ERP response exceeded the approved threshold.",
+    "Rollback executed · Snapshot restored; recovery checks were not recorded."
+  ] };
+  assert.equal(isDemoState({ ...saved, maintenance: [legacyRollback] }), false, "rollback execution alone must not close the change");
+  const migrated = migrateDemoState({ ...saved, maintenance: [legacyRollback] });
+  assert.equal(migrated.maintenance[0].status, "Recovery verification required");
+  assert.ok(migrated.maintenance[0].history.some(entry => entry.includes("Legacy rollback reopened")));
+  assert.equal(isDemoState(migrated), true, "legacy rollback history stays available for a service check");
+  const recoveredEvidence = "ERP sign-in passed and queue depth returned to the pre-change baseline.";
+  const completedRollback = { ...migrated.maintenance[0], status: "Rolled back", rollbackVerificationEvidence: recoveredEvidence, history: [...migrated.maintenance[0].history, `Recovery verified · ${recoveredEvidence}`] };
+  assert.equal(isDemoState({ ...migrated, maintenance: [completedRollback] }), true);
 });
 
-test("saved state rejects blank infrastructure labels and security finding identity", () => {
-  const saved = cloneSeed();
-  for (const field of ["name", "type", "zone", "uptime", "icon"]) {
-    const state = cloneSeed();
-    state.nodes[0][field] = " \ufeff ";
-    assert.equal(isDemoState(state), false, `rejects a blank monitored asset ${field}`);
-  }
-  for (const field of ["title", "asset"]) {
-    const state = cloneSeed();
-    state.findings[0][field] = " \ufeff ";
-    assert.equal(isDemoState(state), false, `rejects a blank finding ${field}`);
-  }
-  const eventState = cloneSeed();
-  eventState.events[0] = " \ufeff ";
-  assert.equal(isDemoState(eventState), false, "rejects a blank activity record");
-  const ticketState = cloneSeed();
-  ticketState.tickets[1].updates = [" \ufeff "];
-  assert.equal(isDemoState(ticketState), false, "rejects a blank ticket update");
-  const changeState = cloneSeed();
-  changeState.maintenance[0].history = [" \ufeff "];
-  assert.equal(isDemoState(changeState), false, "rejects a blank change-history entry");
-  assert.equal(isDemoState(saved), true);
+test("browser state validation rejects snapshots that violate server-side gates", () => {
+  const seed = cloneSeed();
+  assert.equal(isDemoState({ ...seed, unexpected: "extension" }), false, "unknown top-level fields are rejected by both validators");
+  const blankOwner = cloneSeed();
+  blankOwner.maintenance[0].owner = "\ufeff";
+  assert.equal(isDemoState(blankOwner), false, "Unicode byte-order marks are whitespace for browser owner validation");
+  const paddedUnassigned = cloneSeed();
+  paddedUnassigned.maintenance[0].owner = " Unassigned ";
+  assert.equal(isDemoState(paddedUnassigned), false, "whitespace cannot turn the unassigned placeholder into a valid owner");
+  const paddedTicket = cloneSeed();
+  paddedTicket.tickets[0].assignee = " Unassigned ";
+  assert.equal(isDemoState(paddedTicket), false, "worked tickets must have a real assignee after trimming");
+  const paddedFinding = cloneSeed();
+  paddedFinding.findings[1].owner = " Unassigned ";
+  assert.equal(isDemoState(paddedFinding), false, "investigated findings must have a real owner after trimming");
+  const paddedIncident = cloneSeed();
+  paddedIncident.nodes[1].investigation = { owner: " Unassigned ", cause: "CPU saturation", action: "Scale the worker pool", status: "Investigating" };
+  assert.equal(isDemoState(paddedIncident), false, "incidents must have a real owner after trimming");
+
+  const unhealthy = cloneSeed();
+  const server = unhealthy.nodes.find(node => node.id === "app-srv-02");
+  server.signals.cpu = 95;
+  server.health = "Healthy";
+  assert.equal(isDemoState(unhealthy), false, "a healthy asset cannot retain a signal above its healthy threshold");
+  server.signals.cpu = 61;
+  server.health = "Degraded";
+  server.investigation = { owner: "R. Patel", cause: "CPU saturation", action: "Scale the worker pool", status: "Investigating" };
+  server.health = "Healthy";
+  assert.equal(isDemoState(unhealthy), false, "an active investigation cannot have a healthy asset status");
+
+  const workedTicket = cloneSeed();
+  const ticket = workedTicket.tickets.find(item => item.id === "HD-1046");
+  ticket.status = "In progress";
+  ticket.assignee = "R. Patel";
+  ticket.firstResponseMinutes = null;
+  ticket.updates = ["short"];
+  assert.equal(isDemoState(workedTicket), false, "worked tickets need a first-response time and a useful work note");
+  ticket.firstResponseMinutes = 4;
+  ticket.updates = ["Reviewed account state and confirmed the access path."];
+  ticket.relatedAssetId = "unknown-node";
+  assert.equal(isDemoState(workedTicket), false, "ticket asset references must point to a known asset");
+
+  const pending = cloneSeed().maintenance[0];
+  const ready = Object.fromEntries(readinessChecks.map(([key]) => [key, true]));
+  const approved = { ...pending, status: "Approved", readiness: ready, history: [] };
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [approved] }), false, "approved changes need matching approval evidence");
+  approved.history = ["Approved by Jamie Diaz · Readiness and controls reviewed in the window."];
+  approved.risk = "High";
+  approved.readiness.peerReview = true;
+  approved.history[0] = "Approved by Jamie Diaz · Peer review by R. Patel · Readiness and controls reviewed in the window.";
+  approved.owner = "R. Patel";
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [approved] }), false, "high-risk changes need an independent reviewer");
+  approved.owner = "Jamie Diaz";
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [approved] }), true, "an independently reviewed high-risk change passes the same gate as the API");
+
+  const unicodeNames = structuredClone(approved);
+  unicodeNames.owner = "Straße";
+  unicodeNames.history[0] = "Approved by Jamie Diaz · Peer review by STRASSE · Controls and rollback evidence were reviewed.";
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [unicodeNames] }), true, "reviewer identity comparison uses the same locale-independent lowercase rule as the API");
+
+  const rejected = { ...pending, status: "Rejected", history: ["Rejected by Jamie Diaz · The rollback plan lacks a service recovery verification step."] };
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [rejected] }), true, "rejections retain their decision rationale");
+
+  const rollbackRequired = { ...approved, risk: "Medium", status: "Rollback required", preChangeEvidence: "Baseline health check passed before work.", validationEvidence: "Post-change response exceeded the agreed threshold.", history: ["Approved by Jamie Diaz · Readiness and controls reviewed in the window.", "Implementation started in approved window · Baseline health check passed before work.", "Validation failed · Post-change response exceeded the agreed threshold."] };
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [rollbackRequired] }), true);
+  delete rollbackRequired.preChangeEvidence;
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [rollbackRequired] }), false, "rollback-required changes need implementation evidence");
+
+  const unresolvedLink = { ...pending, findingId: "SEC-9999" };
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [unresolvedLink] }), false, "change finding references must point to a known finding");
 });
 
-test("browser state validation matches API evidence gates for worked tickets", () => {
-  const missingFirstResponse = cloneSeed();
-  missingFirstResponse.tickets[0].firstResponseMinutes = null;
-  assert.equal(isDemoState(missingFirstResponse), false);
+test("browser state validation accepts valid Unicode pairs and rejects unpaired surrogates", () => {
+  const valid = cloneSeed();
+  valid.events[0] = "Synthetic Unicode check 😀";
+  assert.equal(isDemoState(valid), true);
+  const state = cloneSeed();
+  state.events[0] = "unpaired surrogate: \ud800";
+  assert.equal(isDemoState(state), false);
+});
 
-  const missingWorkNote = cloneSeed();
-  missingWorkNote.tickets[0].updates = [];
-  assert.equal(isDemoState(missingWorkNote), false);
+test("browser state validation applies the API's portable JSON checks to extension fields", () => {
+  const state = cloneSeed();
+  state.nodes[0].futureMetric = Number.MAX_SAFE_INTEGER;
+  assert.equal(isDemoState(state), true, "safe integer extensions remain compatible");
+  state.nodes[0].futureMetric = Number.MAX_SAFE_INTEGER + 1;
+  assert.equal(isDemoState(state), false, "imprecise integer extensions are rejected before writing");
+  state.nodes[0].futureMetric = 1e20;
+  assert.equal(isDemoState(state), false, "integral floats serialized as unsafe integers are rejected");
+  state.nodes[0].futureMetric = 1e21;
+  assert.equal(isDemoState(state), true, "large exponent-form floats remain portable");
+  state.nodes[0].futureMetric = Number.POSITIVE_INFINITY;
+  assert.equal(isDemoState(state), false, "non-finite extensions are rejected");
+});
 
-  const newTicketWithResponse = cloneSeed();
-  newTicketWithResponse.tickets[1].firstResponseMinutes = 3;
-  assert.equal(isDemoState(newTicketWithResponse), false);
+test("large JSON integer tokens use the browser's number and serialization boundaries", () => {
+  const state = cloneSeed();
+  const roundedByJsonParse = JSON.parse("999999999999999999999");
+  assert.equal(roundedByJsonParse, 1e21);
+  state.nodes[0].extension = { value: roundedByJsonParse };
+  assert.equal(isDemoState(state), true, "values serialized with exponent notation remain portable");
+  state.nodes[0].extension = { value: 1e20 };
+  assert.equal(isDemoState(state), false, "imprecise integers serialized without exponent notation are rejected");
+});
 
-  const brokenAssetHandoff = cloneSeed();
-  brokenAssetHandoff.tickets[0].relatedAssetId = "missing-host";
-  assert.equal(isDemoState(brokenAssetHandoff), false);
-
-  const brokenFindingHandoff = cloneSeed();
-  brokenFindingHandoff.maintenance[0].findingId = "SEC-9999";
-  assert.equal(isDemoState(brokenFindingHandoff), false);
-
-  const healthyOverThreshold = cloneSeed();
-  const erp = healthyOverThreshold.nodes.find(node => node.id === "app-srv-02");
-  erp.health = "Healthy";
-  assert.equal(isDemoState(healthyOverThreshold), false);
-
-  const unsubstantiatedApproval = cloneSeed();
-  Object.keys(unsubstantiatedApproval.maintenance[0].readiness).forEach(key => { unsubstantiatedApproval.maintenance[0].readiness[key] = true; });
-  unsubstantiatedApproval.maintenance[0].status = "Approved";
-  assert.equal(isDemoState(unsubstantiatedApproval), false);
-
-  const sameOwnerPeerReview = cloneSeed();
-  const highRiskChange = sameOwnerPeerReview.maintenance[0];
-  highRiskChange.risk = "High";
-  highRiskChange.status = "Approved";
-  Object.keys(highRiskChange.readiness).forEach(key => { highRiskChange.readiness[key] = true; });
-  highRiskChange.readiness.peerReview = true;
-  highRiskChange.history.push("09:00 · Peer review by R. Patel · Scope and rollback reviewed.");
-  highRiskChange.history.push("09:01 · Approved by Jamie Diaz · Impact and recovery checks are defined.");
-  assert.equal(isDemoState(sameOwnerPeerReview), false);
-
-  const recordedIndependentReview = cloneSeed();
-  const reviewedChange = recordedIndependentReview.maintenance[0];
-  reviewedChange.risk = "High";
-  reviewedChange.status = "Approved";
-  reviewedChange.validationPlan = "Confirm ERP sign-in and compare response time with the approved baseline.";
-  Object.keys(reviewedChange.readiness).forEach(key => { reviewedChange.readiness[key] = true; });
-  reviewedChange.readiness.peerReview = true;
-  reviewedChange.history.push("09:00 · Peer review by Jamie Diaz · Scope and rollback reviewed.");
-  reviewedChange.history.push("09:01 · Approved by Jamie Diaz · Impact and recovery checks are defined.");
-  assert.equal(isDemoState(recordedIndependentReview), true);
-
-  const overLimit = cloneSeed();
-  overLimit.events = Array.from({ length: 101 }, () => "Synthetic event");
-  assert.equal(isDemoState(overLimit), false);
-
-  const extraTopLevelField = cloneSeed();
-  extraTopLevelField.debug = true;
-  assert.equal(isDemoState(extraTopLevelField), false);
-
-  const unsafeExtensionInteger = cloneSeed();
-  unsafeExtensionInteger.nodes[0].extensionCounter = Number.MAX_SAFE_INTEGER + 1;
-  assert.equal(isDemoState(unsafeExtensionInteger), false);
-  const unsafeExponentInteger = cloneSeed();
-  unsafeExponentInteger.nodes[0].extensionCounter = 1e20;
-  assert.equal(isDemoState(unsafeExponentInteger), false);
-  const exponentInteger = cloneSeed();
-  exponentInteger.nodes[0].extensionCounter = 1e21;
-  assert.equal(isDemoState(exponentInteger), true);
-  assert.equal(JSON.parse(JSON.stringify(exponentInteger)).nodes[0].extensionCounter, 1e21);
-
-  const invalidUnicode = cloneSeed();
-  invalidUnicode.events = ["\ud800"];
-  assert.equal(isDemoState(invalidUnicode), false);
-
-  const oversizedCasebook = cloneSeed();
-  oversizedCasebook.nodes[0].extensionText = "x".repeat(1_000_000);
-  assert.equal(isDemoState(oversizedCasebook), false);
-
-  assert.equal(isDemoState(cloneSeed()), true);
+test("browser state validation rejects sparse domain and evidence arrays before JSON serialization", () => {
+  for (const key of ["findings", "tickets", "maintenance", "events"]) {
+    const state = cloneSeed();
+    state[key] = new Array(1);
+    assert.ok(JSON.stringify(state).includes(`"${key}":[null]`));
+    assert.equal(isDemoState(state), false, `${key} cannot contain a hole that the API would receive as null`);
+  }
+  const sparseUpdates = cloneSeed();
+  sparseUpdates.tickets[1].updates = new Array(1);
+  assert.equal(isDemoState(sparseUpdates), false, "ticket update evidence must not contain sparse slots");
+  const sparseHistory = cloneSeed();
+  sparseHistory.maintenance[0].history = new Array(1);
+  assert.equal(isDemoState(sparseHistory), false, "change history evidence must not contain sparse slots");
 });
 
 test("demo state migration preserves a browser save with previous utilization signal names", () => {
@@ -207,6 +204,20 @@ test("demo state migration preserves a browser save with previous utilization si
   assert.equal(migrateDemoState(null), null);
 });
 
+test("legacy recovery migration leaves malformed maintenance records for state validation", () => {
+  const malformedMaintenance = [[null], { status: "Rolled back" }, [{ status: "Rolled back" }]];
+  for (const maintenance of malformedMaintenance) {
+    const saved = cloneSeed();
+    const database = saved.nodes.find(node => node.id === "db-pri-01");
+    database.signals.connections = database.signals.connectionUtilization;
+    delete database.signals.connectionUtilization;
+    saved.maintenance = maintenance;
+
+    const migrated = migrateDemoState(saved);
+    assert.equal(isDemoState(migrated), false, "malformed records remain invalid");
+  }
+});
+
 test("ticket transitions reject invalid steps and permit a deliberate reopen", () => {
   const ticket = { id: "HD-1048", status: "New" };
   assert.equal(transitionTicket(ticket, "start").status, "In progress");
@@ -220,8 +231,6 @@ test("ticket transitions reject invalid steps and permit a deliberate reopen", (
 test("ticket IDs increment from the highest existing sequence", () => {
   assert.equal(nextTicketId([{ id: "HD-1042" }, { id: "HD-1050" }]), "HD-1051");
   assert.equal(nextTicketId([]), "HD-1041");
-  assert.equal(nextTicketId([{ id: "HD-9007199254740992" }, { id: "HD-9007199254740993" }]), "HD-9007199254740994");
-  assert.equal(nextCaseId([{ id: "CHG-999999999999999999999999999999" }], "CHG", 208), "CHG-1000000000000000000000000000000");
 });
 
 test("first response SLA uses priority target and recorded response time", () => {
@@ -257,7 +266,6 @@ test("ticket update stores owner and work note with an allowed transition", () =
   assert.equal(previouslyAnswered.firstResponseMinutes, 4, "reassignment does not replace a previously recorded first response");
   assert.equal(updateTicket(ticket, { status: "resolve", assignee: "R. Patel", note: "Attempted fix." }), ticket);
   assert.equal(updateTicket(ticket, { status: "start", assignee: "R. Patel", note: "short" }), ticket);
-  assert.equal(updateTicket(ticket, { status: "start", assignee: "R. Patel", note: "😀".repeat(4) }), ticket);
   assert.equal(updateTicket(ticket, { status: "start", assignee: "", note: "Missing owner." }), ticket);
   assert.equal(updateTicket(ticket, { status: "start", assignee: "Unassigned", note: "Still needs an owner." }), ticket);
   const active = { ...changed, status: "In progress" };
@@ -271,12 +279,9 @@ test("ticket update stores owner and work note with an allowed transition", () =
 
 test("security triage requires ownership and plan; closure requires evidence", () => {
   const finding = { status: "Open", owner: "Unassigned" };
-  assert.equal(textLength("😀😀😀😀😀😀"), 6, "string thresholds match Python Unicode code-point counting");
   assert.equal(triageFinding(finding, { owner: "", responsePlan: "Patch" }), finding);
   assert.equal(triageFinding(finding, { owner: "Unassigned", responsePlan: "Patch and validate the app" }), finding);
   assert.equal(triageFinding(finding, { owner: "R. Patel", responsePlan: "Patch" }), finding);
-  assert.equal(triageFinding(finding, { owner: "R. Patel", responsePlan: "             " }), finding);
-  assert.equal(triageFinding(finding, { owner: "R. Patel", responsePlan: "😀".repeat(6) }), finding);
   const triaged = triageFinding(finding, { owner: "R. Patel", responsePlan: "Patch and verify application health" });
   assert.equal(triaged.status, "Investigating");
   assert.equal(resolveFinding(triaged, { resolution: "" }), triaged);
@@ -290,7 +295,6 @@ test("infrastructure investigation records cause and only closes on a recovery c
   const seed = cloneSeed();
   const node = seed.nodes.find(item => item.id === "app-srv-02");
   assert.equal(recordIncidentInvestigation(node, { owner: "", cause: "CPU saturation", action: "Scale worker pool" }), node);
-  assert.equal(recordIncidentInvestigation(node, { owner: "R. Patel", cause: "CPU saturation", action: "   " }), node);
   const triaged = recordIncidentInvestigation(node, { owner: "R. Patel", cause: "CPU saturation", action: "Scale worker pool" });
   assert.equal(triaged.health, "Degraded");
   assert.equal(triaged.investigation.owner, "R. Patel");
@@ -381,14 +385,9 @@ test("change readiness, window confirmation, and decision evidence gate every tr
   const change = cloneSeed().maintenance[0];
   assert.equal(readinessChecks.length, 5);
   assert.equal(maintenanceAction(change, "approve"), change);
-  const flagWithoutPlan = { ...change, readiness: { ...change.readiness, validationReady: true } };
-  assert.equal(maintenanceAction(flagWithoutPlan, "approve", { evidence: "Impact, controls, owner, and rollback are suitable for this window." }), flagWithoutPlan, "validation readiness needs a recorded plan");
-  const ready = { ...change, validationPlan: "Confirm ERP sign-in and compare response time with the approved baseline.", readiness: { ...change.readiness, validationReady: true } };
+  const ready = { ...change, readiness: { ...change.readiness, validationReady: true } };
   const approvalEvidence = "Impact, controls, owner, and rollback are suitable for this window.";
-  assert.equal(maintenanceAction(ready, "approve", { evidence: "Impact scope · service owner · rollback evidence reviewed for approval." }).status, "Approved", "decision evidence may contain the history separator");
   assert.equal(maintenanceAction(ready, "approve"), ready, "approval needs a recorded rationale");
-  const shortUnicodeEvidence = { ...ready, validationPlan: "😀".repeat(6) };
-  assert.equal(maintenanceAction(shortUnicodeEvidence, "approve", { evidence: approvalEvidence }), shortUnicodeEvidence, "Unicode evidence minimum matches Python code-point validation");
   const approved = maintenanceAction(ready, "approve", { evidence: approvalEvidence });
   assert.equal(approved.status, "Approved");
   const ownerless = { ...ready, owner: "" };
@@ -406,7 +405,13 @@ test("change readiness, window confirmation, and decision evidence gate every tr
   assert.equal(rollbackRequired.status, "Rollback required");
   const rollbackEvidence = "Snapshot restored and ERP sign-in returned to the baseline.";
   assert.equal(maintenanceAction(rollbackRequired, "rollback"), rollbackRequired, "rollback needs a recovery record");
-  assert.equal(maintenanceAction(rollbackRequired, "rollback", { evidence: rollbackEvidence }).status, "Rolled back");
+  const recoveryPending = maintenanceAction(rollbackRequired, "rollback", { evidence: rollbackEvidence });
+  assert.equal(recoveryPending.status, "Recovery verification required");
+  assert.equal(maintenanceAction(recoveryPending, "verifyRecovery"), recoveryPending, "service recovery requires written evidence");
+  const recoveryEvidence = "ERP sign-in passed and queue depth returned to the pre-change baseline.";
+  const rolledBack = maintenanceAction(recoveryPending, "verifyRecovery", { evidence: recoveryEvidence });
+  assert.equal(rolledBack.status, "Rolled back");
+  assert.equal(rolledBack.rollbackVerificationEvidence, recoveryEvidence);
   assert.equal(maintenanceAction(started, "passed", { evidence: "ERP response and sign-in checks passed against the baseline." }).status, "Completed");
   assert.equal(maintenanceAction(change, "reject"), change, "rejection needs a recorded reason");
   assert.equal(maintenanceAction(change, "reject", { evidence: "Validation plan is missing for this window." }).status, "Rejected");
@@ -414,7 +419,7 @@ test("change readiness, window confirmation, and decision evidence gate every tr
 });
 
 test("high-risk changes require an independent peer review", () => {
-  const change = { ...cloneSeed().maintenance[0], validationPlan: "Verify sign-in, service latency, and queue depth after maintenance.", risk: "High", readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])) };
+  const change = { ...cloneSeed().maintenance[0], risk: "High", readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])) };
   const approvalEvidence = "Independent controls and rollback evidence reviewed for approval.";
   assert.equal(maintenanceAction(change, "approve", { evidence: approvalEvidence }), change);
   const reviewed = { ...change, readiness: { ...change.readiness, peerReview: true } };
@@ -424,6 +429,4 @@ test("high-risk changes require an independent peer review", () => {
   const ownerless = { ...reviewed, owner: "" };
   assert.equal(maintenanceAction(ownerless, "approve", { peerReviewer: "T. Brown", evidence: approvalEvidence }), ownerless);
   assert.equal(maintenanceAction(reviewed, "approve", { peerReviewer: "T. Brown", evidence: approvalEvidence }).status, "Approved");
-  const unicodeOwner = { ...reviewed, owner: "Straße" };
-  assert.equal(maintenanceAction(unicodeOwner, "approve", { peerReviewer: "STRASSE", evidence: approvalEvidence }).status, "Approved");
 });

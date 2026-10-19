@@ -1,104 +1,80 @@
-# Northstar · ICT Engineering Portfolio
+# ICT Engineering Portfolio
 
-**Five interactive ICT operations applications that show how an engineer investigates, decides, verifies, and records the outcome.** This recruiter-facing casebook combines infrastructure monitoring, security response, IT service management, network fault isolation, and maintenance change control in a responsive web interface.
+**Five interactive ICT operations applications, built as a human-directed AI project.** The portfolio demonstrates practical engineering decisions across infrastructure, security, service desk, network troubleshooting, and change control.
 
-The applications run on synthetic scenarios. Their workflows write to a local Python API and SQLite casebook so investigation notes, handoffs, decisions, recovery evidence, and revisions can be inspected after reload. They do not connect to real infrastructure.
+The starting brief was approximately: “Build me something that someone hiring an ICT engineer might find impressive.” Prompt Perfect structured it; Designer applied the configured engineering principles and presented options; the owner selected this portfolio. Luna 6 High implemented the original project and prior improvements. Codex Cloud completed the final engineering refinement recorded below. The AI systems implemented the code; the owner directed the project and selected its scope.
 
-**Human-directed, AI-implemented:** the owner selected the project and set its engineering principles. Luna 6 High implemented the original build; Codex Cloud completed the improvement cycles described below.
+**Vanilla JavaScript · Python standard library · SQLite · five applications · synthetic scenarios only**
 
-[Screenshots](docs/screenshots.md) · [Engineering case studies](docs/case-studies.md) · [Verification evidence](docs/verification.md) · [Run locally](#run-the-demo-locally)
+[![Portfolio homepage in a local Chromium session](docs/screenshots/homepage-desktop.jpg)](docs/screenshots/homepage-desktop.jpg)
 
-<p align="center"><a href="docs/screenshots/final-cycle/homepage-desktop.jpg"><img src="docs/screenshots/final-cycle/homepage-desktop.jpg" alt="Northstar ICT Engineering Portfolio homepage showing five operational applications and a SQLite-backed synthetic casebook" width="100%"></a></p>
+## The applications
 
-<p align="center"><strong>Current application · desktop · synthetic casebook saved to local SQLite</strong></p>
+Each lab follows a realistic decision path: interpret a signal or request, gather evidence, select an action, and record the result. The data and outcomes are synthetic; no lab connects to live systems.
 
-## What the portfolio demonstrates
-
-Each lab presents a concrete operational situation, guided investigation, constrained decision, and recorded evidence. Use the left navigation or the casebook cards to open each application.
-
-| Application | Engineering work shown |
+| Application | What it demonstrates |
 | --- | --- |
-| **Infrastructure Health Monitor** | Correlate host and availability signals, document a cause hypothesis and action, then close an incident only after a recovery check. |
-| **Security Findings Dashboard** | Consider exposure and business impact, assign an owner, document a response plan, and resolve only with verification evidence. |
-| **IT Helpdesk Ticket System** | Capture impact, assign ownership, track illustrative first-response targets, preserve work notes, and confirm resolution with the requester. |
-| **Network Fault Isolation Tool** | Compare client, gateway, DNS, and upstream checkpoints; identify a likely fault boundary and hand findings to a ticket. |
-| **Maintenance Approval & Rollback** | Gate change approval on readiness evidence, confirm the window and baseline, record validation, and document recovery after a failed check. |
+| **Infrastructure Health Monitor** | Correlate service and host signals, record a cause and action, then verify recovery. |
+| **Security Findings Dashboard** | Prioritize by exposure and impact, assign an owner, and close with remediation evidence. |
+| **IT Helpdesk Ticket System** | Capture impact, assign a ticket, track first response, and enforce lifecycle and resolution evidence. |
+| **Network Fault Isolation Tool** | Test client, gateway, DNS, and upstream boundaries; hand findings to the service desk. |
+| **Maintenance Approval & Rollback** | Gate approval on readiness, confirm the window, validate the change, and record recovery when checks fail. |
 
-### Real browser captures
+## Screenshots
 
-These screenshots were captured from the running application in headless Chromium against a temporary SQLite database. The records and people shown are fictional. The full-resolution image opens when selected.
+These are optimized captures from the running application in headless Chromium, using the local Python API and synthetic SQLite casebook. They show the application itself, including two workflow outcomes. Select any image to inspect its full-resolution capture.
 
-| Infrastructure recovery | Security remediation |
+### Application views
+
+| Infrastructure health | Security findings |
 | --- | --- |
-| [![Health monitor showing the ERP host recovered with measured signals and one separate synthetic alert still open](docs/screenshots/final-cycle/health-recovery.jpg)](docs/screenshots/final-cycle/health-recovery.jpg) | [![Security dashboard showing SEC-2418 resolved with owner, plan, and evidence while other findings remain visible](docs/screenshots/final-cycle/security-remediation.jpg)](docs/screenshots/final-cycle/security-remediation.jpg) |
+| [![Infrastructure Health Monitor](docs/screenshots/health-desktop.jpg)](docs/screenshots/health-desktop.jpg) | [![Security Findings Dashboard](docs/screenshots/security-desktop.jpg)](docs/screenshots/security-desktop.jpg) |
 
-| Helpdesk ownership and response | Network fault isolation |
+| IT helpdesk | Network fault isolation |
 | --- | --- |
-| [![Helpdesk queue with a newly created ticket assigned to an engineer and first response recorded](docs/screenshots/final-cycle/helpdesk-first-response.jpg)](docs/screenshots/final-cycle/helpdesk-first-response.jpg) | [![Network diagnostic identifying a likely East wing wireless access point or local uplink fault and next test](docs/screenshots/final-cycle/network-isolation.jpg)](docs/screenshots/final-cycle/network-isolation.jpg) |
+| [![IT Helpdesk Ticket System](docs/screenshots/helpdesk-desktop.jpg)](docs/screenshots/helpdesk-desktop.jpg) | [![Network Fault Isolation Tool](docs/screenshots/network-desktop.jpg)](docs/screenshots/network-desktop.jpg) |
 
-| Maintenance recovery |
-| --- |
-| [![Maintenance request showing approval, implementation, failed validation, and documented rollback evidence](docs/screenshots/final-cycle/maintenance-rollback.jpg)](docs/screenshots/final-cycle/maintenance-rollback.jpg) |
+| Maintenance approval and rollback | Mobile homepage |
+| --- | --- |
+| [![Maintenance Approval and Rollback](docs/screenshots/maintenance-desktop.jpg)](docs/screenshots/maintenance-desktop.jpg) | [![Portfolio homepage at a mobile viewport](docs/screenshots/homepage-mobile.jpg)](docs/screenshots/homepage-mobile.jpg) |
 
-#### Responsive view
+### Mobile application view
 
-![Genuine 390-pixel mobile Chromium capture of the portfolio homepage, its application cards, and synthetic operational summary](docs/screenshots/final-cycle/homepage-mobile.jpg)
+[![Network fault isolation form at a 390-pixel phone viewport](docs/screenshots/network-mobile.jpg)](docs/screenshots/network-mobile.jpg)
 
-**Mobile workflow capture · 390 px**
+### Workflow evidence
 
-<p align="center"><a href="docs/screenshots/final-cycle/network-isolation-mobile.jpg"><img src="docs/screenshots/final-cycle/network-isolation-mobile.jpg" alt="Mobile network fault isolation workflow with East wing packet-loss results and an available helpdesk handoff" width="320"></a></p>
+| Multi-site packet-loss diagnosis | Change failure and recorded rollback |
+| --- | --- |
+| [![Synthetic network fault isolation result](docs/screenshots/network-isolation-result.jpg)](docs/screenshots/network-isolation-result.jpg) | [![Synthetic maintenance rollback workflow](docs/screenshots/maintenance-rollback.jpg)](docs/screenshots/maintenance-rollback.jpg) |
 
-## How the project was made
+The network result compares client, gateway, and upstream loss, then proposes a test at the fault boundary. The change record keeps rollback execution open until a separate service check passes against the pre-change baseline.
 
-The work began with a single owner prompt: “Build me something that someone hiring an ICT engineer might find impressive.” Prompt Perfect structured the request for the owner’s custom-configured Designer. Designer applied the owner’s engineering principles and proposed project options; the owner selected the ICT Engineering Portfolio. **Luna 6 High implemented the original applications. Codex Cloud performed the later engineering work.**
+All names, requests, hosts, alerts, findings, metrics, timestamps, and outcomes shown in these images are fictional.
 
-| Stage | Work | Time |
-| --- | --- | --- |
-| Original build · Luna 6 High | Implemented the five application simulations and initial portfolio. This work is separate from the improvement-cycle budget. | Original build |
-| Frontend improvement · Codex Cloud | Refined recruiter-facing presentation, application workflows, responsive layouts, and accessibility. | 3 hours, as recorded by the owner |
-| Backend improvement · Codex Cloud | Added the local API, SQLite persistence, revision-aware writes, retained history, restore, and verified backups. | 3 hours, as recorded by the owner |
-| Final engineering refinement · Codex Cloud | Closed browser/API validation gaps, made concurrent-write recovery deliberate and revision-safe, verified all five workflows, and refreshed the screenshots and technical evidence. | 3 h 59 m 55 s · 2026-10-19 06:44:25–10:44:20 UTC |
+## Engineering approach
 
-The three improvement cycles total 9 h 59 m 55 s (approximately ten hours): the first two three-hour durations are owner-recorded, and the final duration above was measured by Codex Cloud. Luna 6 High's original build is separate from this improvement time.
-
-The owner directed the project, chose the solution, and reviewed the work. Source-code authorship is attributed to the AI systems that implemented each stage; this README does not represent the code as personally hand-written by the owner.
-
-## Architecture
-
-The project keeps a small, dependency-free architecture: vanilla JavaScript in the browser, a Python standard-library server, and a local SQLite file. Browser storage preserves a recovery copy if the local API is unavailable. The server listens on loopback only.
+The project keeps a small, inspectable architecture and places validation at both the browser and API boundaries.
 
 ```mermaid
 flowchart LR
-    UI[Browser · five applications] -->|JSON with expected revision| API[Python standard-library API]
-    UI -.->|local fallback and recovery copy| LS[Browser local storage]
-    API -->|validate and compare revision| DB[(SQLite casebook)]
-    DB -->|checked, no-overwrite copy| Backup[SQLite backup]
+  Browser[Vanilla JavaScript app] -->|same-origin JSON and revision| API[Python standard-library API]
+  Browser -->|offline recovery copy| Cache[Browser local storage]
+  API -->|validated snapshot and history| DB[(SQLite casebook)]
+  DB -->|verified consistent copy| Backup[SQLite backup]
 ```
 
-| Area | Implementation |
-| --- | --- |
-| Frontend | No-build HTML, responsive CSS, and vanilla JavaScript; `src/model.js` owns fixtures and domain transitions, while `src/app.js` renders workflows and synchronizes state. |
-| API | `scripts/serve.py` serves same-origin static assets and JSON endpoints on `127.0.0.1:4173`. It validates host, request framing, payload size, and casebook invariants. |
-| Persistence | SQLite stores the active casebook and up to 25 consecutive snapshots. Compare-and-swap revisions reject stale writes; restore creates a new revision and records its source. |
-| Recovery | `scripts/backup_demo_state.py` checks database integrity and history consistency, then creates a permission-restricted backup without overwriting an existing destination. |
-| Dependencies | Python standard library and Node built-ins for the app and tests. No install step, framework, hosted database, or external service. |
+- Domain transitions and synthetic fixtures live in `src/model.js`; `src/app.js` renders the workflows and synchronizes state; `src/styles.css` supplies the responsive interface.
+- The Python server validates casebook shape and workflow gates, compares revisions before writes, and commits the snapshot and bounded revision history atomically.
+- Stale edits return `409 Conflict`. The browser keeps an unsynced recovery copy and offers deliberate retry, download, or server-copy actions.
+- Revision history can be inspected and restored through the local API. The backup utility verifies integrity and history consistency before atomically creating a new backup without overwriting an existing file.
+- Keyboard navigation, labeled controls, focus-managed dialogs, reduced-motion support, and narrow-screen layouts are included. Browser checks found no horizontal overflow across the six routes at 320, 390, 768, and 1440 pixels; this is not a formal accessibility audit.
 
-## Verification
+The SQLite file is outside the repository by default. The server binds to `127.0.0.1` and has no authentication. Keep it local or use a private SSH tunnel; it is not a public service. Scenarios are rule-based examples, not monitoring, security scanning, or network probes.
 
-The checks below were run locally; there is no GitHub Actions pipeline configured for this repository.
+## Architecture and local run
 
-- `npm test` — **19 JavaScript model/accessibility tests and 69 Python API/server tests** pass. Regression coverage checks non-empty asset/finding identities and audit entries; a cross-runtime test sends ten representative states through the live SQLite API and compares the client-side JavaScript and Python validators across 3,895 deterministic single-field and combined casebook mutations.
-- `npm run check` — JavaScript syntax checks pass; `python3 -m py_compile scripts/serve.py scripts/backup_demo_state.py` passes.
-- **Chromium workflow check** — exercised an infrastructure investigation and recovery, security triage and evidence-backed resolution, helpdesk ticket creation and first response, network diagnosis with ticket handoff, and the maintenance approval-to-rollback path. Each saved state was read back from the temporary SQLite API.
-- **Responsive/accessibility checks** — 60 Chromium checks across all six routes and viewport widths from 320 to 2560 CSS px found no horizontal overflow, unnamed visible controls, page errors, or external requests. A separate 128-case network sweep exercised all site, symptom, and impact-scope combinations at 320 and 390 px. Dialog checks cover initial focus, background inertness, Tab containment, Escape, and focus return. On a fresh 320 px load, the first Tab reached the skip link. A targeted text-contrast pass prompted darker, slightly larger page labels and helpdesk priority/SLA states; its repeat run found no visible app text below 4.5:1 against solid backgrounds. This is not a formal WCAG audit; detailed scope is in [verification.md](docs/verification.md).
-- **Recovery check** — stale writes returned HTTP 409 without replacing the accepted snapshot; restore created a new head and `/api/health` matched retained history. A two-browser conflict check verified cancel preserves both copies, while a confirmed retry saves the browser backup and keeps the previous server revision retrievable in SQLite history. A backup passed `PRAGMA integrity_check` and had POSIX mode `0600`.
-- **Browser errors and external requests** — none observed in the final capture/workflow run.
-
-See the [verification record](docs/verification.md) for test scope, browser steps, prior-cycle evidence, and limits. See the [screenshot gallery](docs/screenshots.md) for all current captures and selected earlier views.
-
-## Run the demo locally
-
-Requirements: Python 3.10+ and Node.js 20+. No package installation is needed.
+Requires Python 3.10+ and Node.js 20+ for the test commands. There are no application dependencies to install.
 
 ```sh
 npm test
@@ -106,17 +82,44 @@ npm run check
 npm start
 ```
 
-Open <http://127.0.0.1:4173>. Route directly to an app with `#health`, `#security`, `#helpdesk`, `#network`, or `#maintenance`. The default SQLite file lives outside the repository at `~/.local/share/northstar-ict-portfolio/demo.sqlite3`; `ICT_PORTFOLIO_DB` can select another path. For backup, restore, API examples, and the private SSH-tunnel workflow, see [backend operations](docs/backend-operations.md).
+Open <http://127.0.0.1:4173>. Direct routes are `#health`, `#security`, `#helpdesk`, `#network`, and `#maintenance`. Set `ICT_PORTFOLIO_DB` to select a different SQLite file.
 
-## Scope and limitations
+See [case studies](docs/case-studies.md) for the decisions modeled in each lab, the [screenshot gallery](docs/screenshots.md) for individual captures, and the [verification record](docs/verification.md) for checks and limitations.
 
-All names, findings, assets, requests, metrics, checks, and change outcomes are synthetic. Health changes, security remediation, network diagnostics, service-desk actions, and change control are simulations: there are no real probes, scans, notifications, external integrations, or infrastructure actions.
+## Verification evidence
 
-The local SQLite casebook is intended for a single operator and a private demo. The server has no authentication or multi-user authorization and must not be exposed publicly. History is bounded and stored in the same database; it is a recovery feature, not an immutable audit log. Browser verification is not a formal WCAG audit, a production acceptance test, or a cross-browser compatibility matrix.
+The integrated build passes:
 
-## Project notes
+- `npm test`: 25 Node model and accessibility tests, plus 66 Python API/preview tests.
+- `npm run check`: syntax checks for both JavaScript modules.
+- `node --test --experimental-test-coverage`: 100% model line coverage and 90.11% branch coverage.
+- Chromium verified all six routes at 320, 390, 768, and 1440 px, with no overflow, unnamed visible buttons, page errors, or failed requests; a network isolation action also persisted to the temporary SQLite casebook. Earlier workflow, restore, conflict, and backup checks are recorded in [verification evidence](docs/verification.md).
 
-- [Engineering case studies](docs/case-studies.md) — problem, investigation, decision, verification, and lesson for each scenario.
-- [Final-cycle screenshots](docs/screenshots.md) — real captures from the running application.
-- [Verification record](docs/verification.md) — exact tests, browser evidence, and known scope limits.
-- [Backend operations](docs/backend-operations.md) — local data, backups, revisions, restore, and safe VPS viewing.
+The test suite uses built-in Node.js and Python libraries. Browser automation used the environment-provided Playwright and Chromium; neither was added as an application dependency.
+
+## Project timeline and attribution
+
+| Stage | Time | Work and attribution |
+| --- | --- | --- |
+| Prompt and selection | Not recorded | Prompt Perfect structured the request; Designer presented options using the configured engineering principles; the owner selected this portfolio. |
+| Original implementation | Separate from the improvement budget | Luna 6 High implemented the original project. |
+| Frontend refinement | 3 hours | First completed improvement cycle, directed by the owner. |
+| Backend engineering | 3 hours | Second completed improvement cycle, directed by the owner. |
+| Final engineering refinement | 3 h 59 min 55 sec recorded | Codex Cloud completed the final cycle on `final-four-hour-cycle`; its separately developed polish branch was reconciled into the integrated result. |
+
+The three improvement cycles total 9 h 59 min 55 sec of recorded work (approximately 10 hours): 3 hours of frontend refinement, 3 hours of backend engineering, and 3 h 59 min 55 sec of final refinement. The original build and subsequent branch integration are separate from that total.
+
+```mermaid
+flowchart LR
+  Prompt[Owner's project prompt] --> Perfect[Prompt Perfect structures the request]
+  Perfect --> Designer[Designer applies configured principles and presents options]
+  Designer --> Choice[Owner selects the ICT Engineering Portfolio]
+  Choice --> Luna[Luna 6 High implements the original project and first two improvement cycles]
+  Luna --> Codex[Codex Cloud completes the final engineering refinement]
+```
+
+The owner set the direction and selected the project. The named AI systems implemented the code attributed to their stages.
+
+## Limits
+
+This is a private, local portfolio demonstration, not an operational control plane. It has no authentication, authorization, live infrastructure integrations, real notifications, or cloud persistence. All operational scenarios and test records are synthetic. Repository visibility remains private; no website or external service was deployed.

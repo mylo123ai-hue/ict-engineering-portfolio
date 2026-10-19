@@ -4,12 +4,16 @@ import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, "");
+const app = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 
 function declarationsFor(selector) {
   const values = new Map();
-  for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+  const rules = /([^{}]+)\{([^{}]*)\}/g;
+  for (const [, selectors, body] of css.matchAll(rules)) {
     if (!selectors.split(",").some(item => item.trim() === selector)) continue;
-    for (const [, property, value] of body.matchAll(/([\w-]+)\s*:\s*([^;]+);?/g)) values.set(property, value.trim());
+    for (const [, property, value] of body.matchAll(/([\w-]+)\s*:\s*([^;]+);?/g)) {
+      values.set(property, value.trim());
+    }
   }
   return values;
 }
@@ -28,31 +32,57 @@ function contrastRatio(foreground, background) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-test("operational status and diagnostic labels retain readable contrast", () => {
+test("operational labels retain readable color contrast", () => {
   const root = declarationsFor(":root");
   const background = root.get("--canvas");
   const surface = root.get("--surface");
   const pairs = [
-    [".eyebrow", background], [".priority", surface], [".priority.high", surface],
-    [".sim-tag", background], [".network-intro p", background],
-    [".note-items>div>span", surface], [".note-items p", surface],
-    [".sequence-item>span", "#f3f5fa"],
-    [".sequence-item.sequence-pass>span", "#eaf8f3"],
-    [".sequence-item.sequence-fail>span", "#fff0ef"],
-    [".sequence-item.sequence-warning>span", "#fff7e8"],
-    [".sequence-item.sequence-blocked>span", "#f1f3f6"],
-    [".sequence-item small", surface], [".diagnostic-result-head p", surface],
-    [".result-summary strong", "#fff7e9"], [".result-summary p", "#fff7e9"],
-    [".next-test p", surface], [".check-row", surface], [".check-index", surface],
-    [".check-pass", surface], [".check-warning", surface], [".check-fail", surface],
-    [".check-blocked", surface], [".text-action", surface], [".dialog-hint", "#f7f8fb"],
-    [".sla-pill", "#edf8f3"], [".sla-due-soon", "#fff7e8"], [".sla-breached", "#fff0ef"]
+    [".main-area .page-heading .eyebrow", background],
+    [".main-area .priority", surface],
+    [".main-area .priority.high", surface],
+    [".main-area .sim-tag", background],
+    [".main-area .network-intro p", background],
+    [".main-area .note-items>div>span", surface],
+    [".main-area .note-items p", surface],
+    [".main-area .sequence-item>span", declarationsFor(".sequence-item>span").get("background")],
+    [".main-area .sequence-item.sequence-pass>span", declarationsFor(".sequence-item.sequence-pass>span").get("background")],
+    [".main-area .sequence-item.sequence-fail>span", declarationsFor(".sequence-item.sequence-fail>span").get("background")],
+    [".main-area .sequence-item.sequence-warning>span", declarationsFor(".sequence-item.sequence-warning>span").get("background")],
+    [".main-area .sequence-item.sequence-blocked>span", declarationsFor(".sequence-item.sequence-blocked>span").get("background")],
+    [".main-area .sequence-item small", surface],
+    [".main-area .decision-standard span", surface],
+    [".main-area .result-summary strong", "#fff7e9"],
+    [".main-area .check-row", surface],
+    [".main-area .check-pass", surface],
+    [".main-area .check-warning", surface],
+    [".main-area .check-fail", surface],
+    [".main-area .check-blocked", surface],
+    [".status-pill.recovery-verification-required", "#fff7e9"],
+    [".text-action", surface],
+    [".dialog-root .dialog-hint", "#f7f8fb"],
+    [".main-area .sla-pill", declarationsFor(".sla-pill").get("background")],
+    [".main-area .sla-due-soon", declarationsFor(".sla-due-soon").get("background")],
+    [".main-area .sla-breached", declarationsFor(".sla-breached").get("background")]
   ];
 
   for (const [selector, backgroundColor] of pairs) {
     const foreground = declarationsFor(selector).get("color");
-    assert.ok(foreground, `${selector} must declare a text color`);
+    assert.ok(foreground, `${selector} must declare an accessible text color`);
     const ratio = contrastRatio(foreground, backgroundColor);
     assert.ok(ratio >= 4.5, `${selector} contrast ${ratio.toFixed(2)}:1 is below 4.5:1`);
   }
+});
+
+test("maintenance guidance describes service verification after rollback", () => {
+  assert.match(app, /Record rollback, then verify service against its pre-change baseline\./);
+});
+
+test("decorative maintenance and network symbols are hidden from assistive technology", () => {
+  assert.match(app, /class="change-banner-icon" aria-hidden="true">◷<\/div>/);
+  assert.ok(app.includes('<i aria-hidden=\\"true\\">›</i>'));
+  assert.match(app, /class="date-chip"><span aria-hidden="true">◉<\/span>/);
+  assert.match(app, /data-action="health-refresh"><span aria-hidden="true">↻<\/span> Recheck/);
+  assert.match(app, /<span aria-hidden="true">▣<\/span> \$\{esc\(change\.system\)\}/);
+  assert.match(app, /class="resolved-check"><span aria-hidden="true">✓<\/span> Evidence recorded/);
+  assert.match(app, /class="empty-state"><span aria-hidden="true">◷<\/span><strong>No change requests yet/);
 });

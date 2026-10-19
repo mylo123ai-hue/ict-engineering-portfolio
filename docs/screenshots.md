@@ -1,67 +1,55 @@
-# Portfolio screenshot gallery
+# Screenshot gallery
 
-The final-cycle screenshots below were captured in real headless Chromium from the running application, using an isolated temporary SQLite database and synthetic casebook records. They are not mockups or generated interface art. The server remained on `127.0.0.1`; no external hosts were contacted.
+These JPEGs were captured from the running application in local Chromium against a temporary SQLite database. The desktop captures are 1440 pixels wide; the mobile homepage shows a 390 × 844 viewport. All scenarios and records are synthetic. The browser was headless, and screenshots were captured directly from rendered application pages.
 
-The homepage images show the casebook at the start of the capture run. Application workflow images were taken later in that same run after simulated decisions were saved, so counts change as the ticket and finding workflows progress.
+## Portfolio
 
-## Portfolio overview
+![Homepage, desktop](screenshots/homepage-desktop.jpg)
 
-| Desktop · 1440 px | Mobile · 390 px |
-| --- | --- |
-| [![Desktop overview showing the five application cards, synthetic operational snapshot, and SQLite saved indicator](screenshots/final-cycle/homepage-desktop.jpg)](screenshots/final-cycle/homepage-desktop.jpg) | [![Mobile overview showing the responsive navigation, synthetic metrics, and five application cards](screenshots/final-cycle/homepage-mobile.jpg)](screenshots/final-cycle/homepage-mobile.jpg) |
+![Homepage, mobile](screenshots/homepage-mobile.jpg)
 
-## Application workflow states
+## Applications
 
-Each desktop application view shows a representative saved synthetic decision state, not a real production incident or change. The gallery includes both in-progress and closed outcomes. The mobile network view captures a completed in-page diagnostic before the operator chooses whether to create its helpdesk handoff; the main network workflow screenshot and its created ticket are also verified in SQLite.
+### Infrastructure Health Monitor
 
-### 1. Infrastructure Health Monitor
+![Infrastructure Health Monitor](screenshots/health-desktop.jpg)
 
-ERP host investigation is resolved after recording a post-action check. The separate East wing access point alert remains open, reflecting the scenario rather than falsely marking the entire estate healthy.
+### Security Findings Dashboard
 
-![Chromium capture of the health monitor with ERP CPU at 61%, queue depth 8, the application server healthy, and one separate AP alert still open](screenshots/final-cycle/health-recovery.jpg)
+![Security Findings Dashboard](screenshots/security-desktop.jpg)
 
-### 2. Security Findings Dashboard
+### IT Helpdesk Ticket System
 
-SEC-2418 includes an assigned owner, remediation plan, resolved state, and verification evidence. Other synthetic findings remain in the risk register.
+![IT Helpdesk Ticket System](screenshots/helpdesk-desktop.jpg)
 
-![Chromium capture of the security dashboard with SEC-2418 resolved and its owner, plan, and validation evidence visible](screenshots/final-cycle/security-remediation.jpg)
+### Network Fault Isolation Tool
 
-### 3. IT Helpdesk Ticket System
+![Network Fault Isolation Tool](screenshots/network-desktop.jpg)
 
-HD-1049 is assigned and in progress. A simulated four-minute first response lands inside the illustrative 15-minute high-priority target; its work note, owner, and status are visible in the queue.
+### Maintenance Approval & Rollback
 
-![Chromium capture of the helpdesk queue with the East wing Wi-Fi ticket assigned to an engineer and first response recorded](screenshots/final-cycle/helpdesk-first-response.jpg)
+![Maintenance Approval and Rollback](screenshots/maintenance-desktop.jpg)
 
-### 4. Network Fault Isolation Tool
+### Network fault isolation · mobile
 
-The East wing packet-loss scenario compares impact, client link, gateway, and upstream path. The UI presents a likely local wireless fault domain and the next discriminating test; it makes no live probes.
+![Network isolation at a 390-pixel phone viewport](screenshots/network-mobile.jpg)
 
-![Chromium capture of a network isolation sequence with the East wing wireless access point or local uplink as the likely fault domain](screenshots/final-cycle/network-isolation.jpg)
+## Workflow evidence
 
-The browser workflow also handed the diagnostic evidence to a new helpdesk ticket; the created ticket and evidence were read back from SQLite.
+The network result shows a reproducible multi-site packet-loss diagnosis and its next discriminating test. The change-control capture shows a failed validation followed by a recorded rollback and recovery evidence.
 
-The same diagnostic was checked at 390 px on a phone-sized viewport. The result, next discriminating test, and helpdesk handoff remain visible without horizontal page scrolling.
+![Network diagnosis result](screenshots/network-isolation-result.jpg)
 
-![Genuine 390-pixel mobile Chromium capture of the East wing packet-loss diagnostic, likely fault domain, next test, and ticket handoff](screenshots/final-cycle/network-isolation-mobile.jpg)
+![Maintenance rollback result](screenshots/maintenance-rollback.jpg)
 
-### 5. Maintenance Approval & Rollback
+## Earlier final-cycle captures
 
-CHG-208 passes readiness review, starts within its approved window, fails post-change validation, then records restoration and a passing recovery check.
+The earlier `final-four-hour-cycle` branch's authentic screenshots are retained as well:
 
-The captured decision log uses a synthetic 22:00 start and two-minute simulated steps through rollback; these timestamps do not represent a real maintenance window.
+| Homepage | Infrastructure recovery | Security remediation | Helpdesk first response |
+| --- | --- | --- | --- |
+| [Homepage desktop](screenshots/final-cycle/homepage-desktop.jpg) | [Health recovery](screenshots/final-cycle/health-recovery.jpg) | [Security remediation](screenshots/final-cycle/security-remediation.jpg) | [Helpdesk first response](screenshots/final-cycle/helpdesk-first-response.jpg) |
 
-![Chromium capture of the maintenance case showing the rollback status and its approval, implementation, failed validation, and recovery decision log](screenshots/final-cycle/maintenance-rollback.jpg)
-
-## Earlier before-and-after homepage captures
-
-The earlier files below are retained to show the recruiter-facing frontend redesign from the previous improvement cycle. They are separate from the final-cycle browser captures above.
-
-| Synthetic baseline desktop | Synthetic previous-cycle desktop |
-| --- | --- |
-| ![Baseline homepage capture](homepage.jpg) | ![Previous-cycle homepage capture](homepage-v3.jpg) |
-
-| Synthetic baseline mobile | Synthetic previous-cycle mobile |
-| --- | --- |
-| ![Baseline mobile homepage capture](homepage-mobile.jpg) | ![Previous-cycle mobile homepage capture](homepage-mobile-v3.jpg) |
-
-Additional prior-cycle captures are available for the [five applications](apps/), the [SQLite-connected homepage](homepage-backend.jpg), and the [backend cycle](homepage-backend-cycle.png). See the [verification record](verification.md) for the steps and limits of each recorded browser check.
+| Mobile homepage | Network isolation | Mobile network isolation | Maintenance rollback |
+| --- | --- | --- | --- |
+| [Homepage mobile](screenshots/final-cycle/homepage-mobile.jpg) | [Network isolation](screenshots/final-cycle/network-isolation.jpg) | [Network mobile](screenshots/final-cycle/network-isolation-mobile.jpg) | [Maintenance rollback](screenshots/final-cycle/maintenance-rollback.jpg) |
