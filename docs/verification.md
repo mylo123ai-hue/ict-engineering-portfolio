@@ -109,7 +109,7 @@ The starting point was `development` at `9f632ad7469f0254ec2b622c112da2499a164ec
 
 ### Final-cycle automated checks
 
-- `npm test` — 17 Node model tests and 67 Python API/server tests passed on this branch, including the new cross-runtime mutation regression. Run it once more in the final verification window after documentation and screenshot checks.
+- `npm test` — 17 Node model tests and 68 Python API/server tests passed on this branch after the incomplete-write-envelope fix. Run it once more in the final verification window after documentation and screenshot checks.
 - `npm run check` — `src/app.js` and `src/model.js` syntax checks passed.
 - `python3 -B -m py_compile scripts/serve.py scripts/backup_demo_state.py` — passed.
 - `git diff --check` — passed.
@@ -121,6 +121,7 @@ The starting point was `development` at `9f632ad7469f0254ec2b622c112da2499a164ec
 - A code-point sweep from U+0000 through U+10FFFF compared JavaScript `String.trim()` with the API's `trim_text` set; the removed code-point sets matched exactly.
 - A fresh Chromium/API differential run agreed on six persisted-state boundaries: BOM-only and separator-only required fields, `1e20` and `1e21`, the maximum safe integer, and the first unsafe integer. Rejections returned 422 without advancing the revision; accepted values round-tripped to SQLite.
 - A maintenance readiness regression proves an unready request remains valid while the plan is outstanding, but setting `validationReady` requires a non-empty plan of at least 12 characters.
+- A `PUT /api/state` request with a valid revision but no `state` member now returns HTTP 422, leaves revision 0 untouched, and does not raise an uncaught handler exception; the regression passes in the full Python suite.
 - Browser and Python string-length checks now use the same Unicode code-point semantics. Six emoji no longer meet a 12-character evidence requirement merely because JavaScript counts UTF-16 surrogate pairs separately.
 - A final side-by-side validator review found two edge cases: the browser rejected an incident owner of `Unassigned` while the API accepted it, and a full code-point sweep found 55 lowercase-mapping differences between the JavaScript and Python runtime tables. The API now rejects `Unassigned`; both layers fold ASCII casing for reviewer/owner comparisons and preserve non-ASCII characters exactly. Focused regressions confirm those rules on both validators, including the Unicode reviewer case.
 
