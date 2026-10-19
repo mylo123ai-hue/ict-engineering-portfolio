@@ -76,3 +76,8 @@ test("operational labels retain readable color contrast", () => {
 test("maintenance guidance describes service verification after rollback", () => {
   assert.match(app, /Record rollback, then verify service against its pre-change baseline\./);
 });
+
+test("decorative maintenance and network symbols are hidden from assistive technology", () => {
+  assert.match(app, /class="change-banner-icon" aria-hidden="true">◷<\/div>/);
+  assert.ok(app.includes('<i aria-hidden=\\"true\\">›</i>'));
+});
