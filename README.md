@@ -51,7 +51,7 @@ The work began with a single owner prompt: “Build me something that someone hi
 | Original build · Luna 6 High | Implemented the five application simulations and initial portfolio. This work is separate from the improvement-cycle budget. | Original build |
 | Frontend improvement · Codex Cloud | Refined recruiter-facing presentation, application workflows, responsive layouts, and accessibility. | 3 hours, as recorded by the owner |
 | Backend improvement · Codex Cloud | Added the local API, SQLite persistence, revision-aware writes, retained history, restore, and verified backups. | 3 hours, as recorded by the owner |
-| Final engineering refinement · Codex Cloud | Corrected client/API ticket-validation gaps, captured and integrated the finished app states, and refreshed the README and evidence. | See the measured duration in [final-cycle verification](docs/verification.md) |
+| Final engineering refinement · Codex Cloud | Closed browser/API validation gaps, made concurrent-write recovery deliberate and revision-safe, verified all five workflows, and refreshed the screenshots and technical evidence. | See the measured duration in [final-cycle verification](docs/verification.md) |
 
 The owner directed the project, chose the solution, and reviewed the work. Source-code authorship is attributed to the AI systems that implemented each stage; this README does not represent the code as personally hand-written by the owner.
 
@@ -83,7 +83,7 @@ The checks below were run locally; there is no GitHub Actions pipeline configure
 - `npm run check` — JavaScript syntax checks pass; `python3 -m py_compile scripts/serve.py scripts/backup_demo_state.py` passes.
 - **Chromium workflow check** — exercised an infrastructure investigation and recovery, security triage and evidence-backed resolution, helpdesk ticket creation and first response, network diagnosis with ticket handoff, and the maintenance approval-to-rollback path. Each saved state was read back from the temporary SQLite API.
 - **Responsive browser check** — opened all six routes at 320, 390, 768, and 1440 CSS px (24 route/width combinations); none overflowed. A further 18 checks at 320, 390, and 1440 px found one heading per route and no visible controls without an accessible name. Keyboarding to the skip link focused the main content. This is a focused check, not a formal accessibility audit; prior route and interaction evidence is in [verification.md](docs/verification.md).
-- **Recovery check** — a stale write returned HTTP 409 without changing revision 13; restoring revisions 12 and 13 created revisions 14 and 15; `/api/health` matched the 15-row history head. A backup passed `PRAGMA integrity_check`, retained all 15 history rows and the rolled-back case, and had POSIX mode `0600`.
+- **Recovery check** — stale writes returned HTTP 409 without replacing the accepted snapshot; restore created a new head and `/api/health` matched retained history. A two-browser conflict check verified cancel preserves both copies, while a confirmed retry saves the browser backup and keeps the previous server revision retrievable in SQLite history. A backup passed `PRAGMA integrity_check` and had POSIX mode `0600`.
 - **Browser errors and external requests** — none observed in the final capture/workflow run.
 
 See the [verification record](docs/verification.md) for test scope, browser steps, prior-cycle evidence, and limits. See the [screenshot gallery](docs/screenshots.md) for all current captures and selected earlier views.

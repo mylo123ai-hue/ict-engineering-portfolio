@@ -38,6 +38,7 @@ try {
 } catch { storageUnavailable = true; }
 let persistenceMode = "connecting";
 let remoteWrites = Promise.resolve();
+let retrySyncInProgress = false;
 let networkResult = null;
 let networkInputs = { site: "North campus", symptom: "Slow connection", scope: "Single room" };
 let currentRoute = "";
@@ -155,6 +156,7 @@ function queueBackendSave() {
     setPersistenceStatus("conflict");
     toast("Backend save failed; your unsynced casebook is backed up in this browser. Download it before using the server copy.");
   });
+  return remoteWrites;
 }
 function storeLocalSnapshot(snapshot) {
   try { localStorage.setItem(storageKey, JSON.stringify(snapshot)); storageUnavailable = false; }
@@ -210,10 +212,13 @@ function downloadConflictBackup() {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-function retryBackendSync() {
-  if (!persistenceConflict) return;
-  const snapshot = structuredClone(localConflictBackup || state);
-  fetch("/api/state", { cache: "no-store" }).then(async response => {
+async function retryBackendSync() {
+  if (!persistenceConflict || retrySyncInProgress) return;
+  retrySyncInProgress = true;
+  const retryButton = document.querySelector("#retrySync");
+  if (retryButton) retryButton.disabled = true;
+  try {
+    const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) throw new Error("The shared casebook is unavailable");
     const remote = await response.json();
     if (!Number.isInteger(remote.revision) || remote.revision < 0 || (remote.state !== null && !isDemoState(migrateDemoState(remote.state)))) {
@@ -222,14 +227,17 @@ function retryBackendSync() {
     if (remote.revision !== backendRevision && !window.confirm(
       `The shared casebook has advanced from revision ${backendRevision} to ${remote.revision}. Saving your browser backup will replace its current view. The current server revision will remain in SQLite history. Continue?`
     )) return;
-    state = snapshot;
+    state = structuredClone(localConflictBackup || state);
     backendRevision = remote.revision;
     try { localStorage.setItem(revisionStorageKey, String(backendRevision)); } catch { storageUnavailable = true; }
     backendReady = true;
-    queueBackendSave();
-  }).catch(() => {
+    await queueBackendSave();
+  } catch {
     toast("Could not check the shared casebook; your browser backup is still saved here.");
-  });
+  } finally {
+    retrySyncInProgress = false;
+    if (retryButton) retryButton.disabled = false;
+  }
 }
 async function useServerCopy() {
   if (!window.confirm("Discard this browser's unsynced casebook and reload the current server copy? Download a backup first if you need these changes.")) return;
