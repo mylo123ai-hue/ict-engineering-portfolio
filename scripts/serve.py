@@ -205,7 +205,10 @@ def valid_node(node):
         return True
     if not is_record(investigation) or not is_one_of(investigation.get("status"), {"Investigating", "Resolved"}):
         return False
-    if not all(is_text(investigation.get(key)) and investigation[key].strip() for key in ("owner", "cause", "action")):
+    if (
+        not all(is_text(investigation.get(key)) and investigation[key].strip() for key in ("owner", "cause", "action"))
+        or investigation["owner"] == "Unassigned"
+    ):
         return False
     valid_resolution = (
         is_text(investigation.get("verification"))

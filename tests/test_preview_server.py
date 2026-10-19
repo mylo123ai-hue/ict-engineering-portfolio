@@ -984,6 +984,17 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
         node["health"] = "Degraded"
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
+        unassigned_investigation = self.valid_casebook()
+        unassigned_node = next(item for item in unassigned_investigation["nodes"] if item["id"] == "app-srv-02")
+        unassigned_node["investigation"] = {
+            "owner": "Unassigned", "cause": "ERP worker saturation",
+            "action": "Scale the ERP workers and drain the saturated process",
+            "status": "Investigating",
+        }
+        self.assertEqual(
+            self.request("/api/state", "PUT", {"revision": 0, "state": unassigned_investigation})[0],
+            422,
+        )
         node.update({
             "health": "Offline",
             "investigation": {
