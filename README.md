@@ -106,6 +106,17 @@ The test suite uses built-in Node.js and Python libraries. Browser automation us
 
 The improvement budget is six completed hours plus the measured final-cycle time. The original build is separate. The four-hour final-cycle ceiling is not rounded up.
 
+```mermaid
+flowchart LR
+  Prompt[Owner's project prompt] --> Perfect[Prompt Perfect structures the request]
+  Perfect --> Designer[Designer applies configured principles and presents options]
+  Designer --> Choice[Owner selects the ICT Engineering Portfolio]
+  Choice --> Luna[Luna 6 High implements the original project and first two improvement cycles]
+  Luna --> Codex[Codex Cloud completes the final engineering refinement]
+```
+
+The owner set the direction and selected the project. The named AI systems implemented the code attributed to their stages.
+
 ## Limits
 
 This is a private, local portfolio demonstration, not an operational control plane. It has no authentication, authorization, live infrastructure integrations, real notifications, or cloud persistence. All operational scenarios and test records are synthetic. No repository visibility change, merge, website publication, or external service deployment is part of this work.
