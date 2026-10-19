@@ -275,7 +275,7 @@ function renderNav(route) {
   document.querySelector("#nav").innerHTML = navItems.map(item => `<a class="nav-item ${route === item.id ? "active" : ""}" href="#${item.id}" aria-label="${esc(item.label)}" title="${esc(item.label)}" ${route === item.id ? 'aria-current="page"' : ""}><span class="nav-icon" aria-hidden="true">${item.icon}</span><span class="nav-text">${esc(item.label)}</span><span class="nav-mobile-label" aria-hidden="true">${esc(item.mobileLabel)}</span>${item.id === "security" ? `<span class="nav-count">${state.findings.filter(f => f.status !== "Resolved").length}</span>` : ""}</a>`).join("");
   const active = navItems.find(item => item.id === route) || navItems[0];
   document.title = `${route === "home" ? "ICT Engineering Portfolio" : active.short || active.label} · Northstar`;
-  document.querySelector("#breadcrumbs").innerHTML = `<a href="#home">Workspace</a><span>/</span><strong>${esc(active.short || active.label)}</strong>`;
+  document.querySelector("#breadcrumbs").innerHTML = `<a href="#home">Workspace</a><span aria-hidden="true">/</span><strong aria-current="page">${esc(active.short || active.label)}</strong>`;
 }
 const evidence = {
   health: ["184 ms ERP response · 88% CPU", "Compare host signals with dependency latency", "A recorded cause, remediation, and post-check"],
