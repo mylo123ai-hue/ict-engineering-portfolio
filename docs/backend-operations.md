@@ -64,10 +64,10 @@ The bounded history is a recovery aid, not a security audit trail: it is in the 
 
 ## Viewing on a private VPS
 
-If the branch has been made available in the private repository and the VPS has an authorized SSH key, clone it and run the server there:
+If the private `final-four-hour-cycle` branch is available to the VPS's authorized SSH key, clone it and run the server there:
 
 ```sh
-git clone --branch development git@github.com:mylo123ai-hue/ict-engineering-portfolio.git
+git clone --branch final-four-hour-cycle git@github.com:mylo123ai-hue/ict-engineering-portfolio.git
 cd ict-engineering-portfolio
 npm start
 ```
