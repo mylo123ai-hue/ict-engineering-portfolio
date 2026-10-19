@@ -63,7 +63,7 @@ function isPortableJSON(root) {
     if (value === null || typeof value === "boolean") continue;
     if (typeof value === "string") { if (!isText(value)) return false; continue; }
     if (typeof value === "number") {
-      if (!Number.isFinite(value) || Number.isInteger(value) && !Number.isSafeInteger(value) && !value.toString().includes("e")) return false;
+      if (!Number.isFinite(value) || Number.isInteger(value) && !Number.isSafeInteger(value)) return false;
       continue;
     }
     if (Array.isArray(value)) {

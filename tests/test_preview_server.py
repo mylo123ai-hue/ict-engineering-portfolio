@@ -166,6 +166,10 @@ class DemoStateApiTests(unittest.TestCase):
         invalid = self.valid_casebook()
         invalid["nodes"][0]["extension"] = MAX_SAFE_REVISION + 1
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": invalid})[0], 422)
+        for value in (1e20, 1e21):
+            unsafe_exponent = self.valid_casebook()
+            unsafe_exponent["nodes"][0]["extension"] = value
+            self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": unsafe_exponent})[0], 422)
         self.assertEqual(self.request("/api/state")[1], {"state": state, "revision": 1})
 
     def test_revision_history_and_restore_are_auditable_and_compare_and_swap(self):

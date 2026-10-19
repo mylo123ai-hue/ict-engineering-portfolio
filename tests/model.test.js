@@ -139,6 +139,12 @@ test("browser state validation matches API evidence gates for worked tickets", (
   const unsafeExtensionInteger = cloneSeed();
   unsafeExtensionInteger.nodes[0].extensionCounter = Number.MAX_SAFE_INTEGER + 1;
   assert.equal(isDemoState(unsafeExtensionInteger), false);
+  const unsafeExponentInteger = cloneSeed();
+  unsafeExponentInteger.nodes[0].extensionCounter = 1e20;
+  assert.equal(isDemoState(unsafeExponentInteger), false);
+  const exponentInteger = cloneSeed();
+  exponentInteger.nodes[0].extensionCounter = 1e21;
+  assert.equal(isDemoState(exponentInteger), false);
 
   const invalidUnicode = cloneSeed();
   invalidUnicode.events = ["\ud800"];

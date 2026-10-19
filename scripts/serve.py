@@ -84,7 +84,7 @@ def is_portable_json(value):
     if type(value) is int:
         return -MAX_SAFE_REVISION <= value <= MAX_SAFE_REVISION
     if type(value) is float:
-        return math.isfinite(value)
+        return math.isfinite(value) and not (value.is_integer() and abs(value) > MAX_SAFE_REVISION)
     if isinstance(value, list):
         return all(is_portable_json(item) for item in value)
     if isinstance(value, dict):
