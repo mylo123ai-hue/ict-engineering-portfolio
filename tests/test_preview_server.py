@@ -1,4 +1,6 @@
 import json
+import copy
+import random
 from concurrent.futures import ThreadPoolExecutor
 import os
 import sqlite3
@@ -16,7 +18,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from scripts.backup_demo_state import backup_database
 from scripts.serve import (
-    DemoStateStore, MAX_SAFE_REVISION, MAX_STATE_BYTES, PortfolioHandler, ROOT, create_server,
+    DemoStateStore, MAX_SAFE_REVISION, MAX_STATE_BYTES, MAX_STATE_REQUEST_BYTES, PortfolioHandler, ROOT, create_server,
     is_allowed_path, migrate_legacy_recovery_state, valid_state_shape,
 )
 
@@ -1363,9 +1365,9 @@ class DemoStateApiTests(unittest.TestCase):
     def test_api_rejects_oversized_state(self):
         request = urllib.request.Request(
             self.base_url + "/api/state",
-            data=b"{}",
+            data=b"x" * (MAX_STATE_REQUEST_BYTES + 1),
             method="PUT",
-            headers={"Content-Type": "application/json", "Content-Length": "1000001"},
+            headers={"Content-Type": "application/json"},
         )
         with self.assertRaises(urllib.error.HTTPError) as error:
             urllib.request.urlopen(request, timeout=2)
@@ -1416,6 +1418,290 @@ class DemoStateApiTests(unittest.TestCase):
         error.exception.close()
         self.assertEqual(self.request("/api/state"), (200, {"state": None, "revision": 0}))
 
+
+    def test_client_javascript_and_api_state_validation_agree_on_edge_case_corpus(self):
+        """Run the client validator under Node and compare it with the live server boundary."""
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", "import { cloneSeed } from './src/model.js'; process.stdout.write(JSON.stringify(cloneSeed()));"],
+            cwd=ROOT, check=True, capture_output=True, text=True,
+        )
+        seed = json.loads(result.stdout)
+        cases = [("synthetic seed", copy.deepcopy(seed))]
+
+        bom_subject = copy.deepcopy(seed)
+        bom_subject["tickets"][1]["subject"] = "\ufeff"
+        cases.append(("BOM-only required ticket subject", bom_subject))
+
+        separator_subject = copy.deepcopy(seed)
+        separator_subject["tickets"][1]["subject"] = "\u001c"
+        cases.append(("ECMAScript-trim-preserved separator subject", separator_subject))
+
+        for label, value in (
+            ("largest safe JSON integer", MAX_SAFE_REVISION),
+            ("first unsafe JSON integer", MAX_SAFE_REVISION + 1),
+            ("unsafe integral exponent", 1e20),
+            ("round-trip-safe exponent-form double", 1e21),
+        ):
+            state = copy.deepcopy(seed)
+            state["nodes"][0]["extensionCounter"] = value
+            cases.append((label, state))
+
+        unassigned_incident = copy.deepcopy(seed)
+        erp = next(item for item in unassigned_incident["nodes"] if item["id"] == "app-srv-02")
+        erp["investigation"] = {
+            "owner": "Unassigned", "cause": "Elevated worker CPU", "action": "Inspect the queue",
+            "status": "Investigating",
+        }
+        cases.append(("incident without an accountable owner", unassigned_incident))
+
+        for reviewer, label in (("r. PATEL", "case-varied owner as peer"), ("T. Brown", "independent peer")):
+            state = copy.deepcopy(seed)
+            change = state["maintenance"][0]
+            change.update({
+                "risk": "High", "status": "Approved",
+                "validationPlan": "Compare ERP login and queue depth to the pre-change baseline.",
+                "readiness": {**change["readiness"], "validationReady": True, "peerReview": True},
+                "history": [
+                    f"Peer review by {reviewer} · Validation evidence and rollback steps independently reviewed.",
+                    "Approved by Jamie Diaz · Impact and recovery checks are sufficiently defined.",
+                ],
+            })
+            cases.append((label, state))
+
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", "import { readFileSync } from 'node:fs'; import { isDemoState } from './src/model.js'; const cases = JSON.parse(readFileSync(0, 'utf8')); process.stdout.write(JSON.stringify(cases.map(isDemoState)));"],
+            cwd=ROOT, input=json.dumps([state for _, state in cases], ensure_ascii=False),
+            check=True, capture_output=True, text=True,
+        )
+        javascript_validity = json.loads(result.stdout)
+        revision = 0
+        for (label, state), javascript_valid in zip(cases, javascript_validity, strict=True):
+            with self.subTest(case=label):
+                self.assertEqual(javascript_valid, valid_state_shape(state), f"validator disagreement for {label}")
+                status, _ = self.request("/api/state", "PUT", {"revision": revision, "state": state})
+                self.assertEqual(status, 200 if javascript_valid else 422, label)
+                if javascript_valid:
+                    revision += 1
+                self.assertEqual(self.request("/api/state")[1]["revision"], revision)
+
+        replacements = (
+            None, True, False, 0, -1, 1e-10, 1e20, 1e21, MAX_SAFE_REVISION,
+            MAX_SAFE_REVISION + 1, "", " ", "\ufeff", "\u001c", "x", [], {}, ["x"], {"x": "x"},
+        )
+        mutated_cases = []
+
+        def leaf_mutations(value, path=()):
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    yield from leaf_mutations(item, path + (key,))
+            elif isinstance(value, list):
+                for index, item in enumerate(value):
+                    yield from leaf_mutations(item, path + (index,))
+            else:
+                for replacement in replacements:
+                    state = copy.deepcopy(seed)
+                    target = state
+                    for part in path[:-1]:
+                        target = target[part]
+                    target[path[-1]] = replacement
+                    yield ".".join(map(str, path)), state
+
+        for key in ("nodes", "findings", "tickets", "maintenance", "events"):
+            variants = ([], seed[key][:-1], seed[key] + [copy.deepcopy(seed[key][0])])
+            for variant in variants:
+                state = copy.deepcopy(seed)
+                state[key] = variant
+                mutated_cases.append((f"shape.{key}", state))
+        mutated_cases.extend(leaf_mutations(seed))
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", "import { readFileSync } from 'node:fs'; import { isDemoState } from './src/model.js'; const states = JSON.parse(readFileSync(0, 'utf8')); process.stdout.write(JSON.stringify(states.map(isDemoState)));"],
+            cwd=ROOT, input=json.dumps([state for _, state in mutated_cases], ensure_ascii=False),
+            check=True, capture_output=True, text=True,
+        )
+        javascript_validity = json.loads(result.stdout)
+        self.assertEqual(len(javascript_validity), len(mutated_cases))
+        for (label, state), javascript_valid in zip(mutated_cases, javascript_validity, strict=True):
+            self.assertEqual(javascript_valid, valid_state_shape(state), f"mutation validator disagreement at {label}")
+
+        leaf_paths = []
+
+        def collect_leaf_paths(value, path=()):
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    collect_leaf_paths(item, path + (key,))
+            elif isinstance(value, list):
+                for index, item in enumerate(value):
+                    collect_leaf_paths(item, path + (index,))
+            else:
+                leaf_paths.append(path)
+
+        collect_leaf_paths(seed)
+        generator = random.Random(20261019)
+        combined_states = []
+        for _ in range(1000):
+            state = copy.deepcopy(seed)
+            paths = generator.sample(leaf_paths, generator.randint(2, 6))
+            for path in paths:
+                target = state
+                for part in path[:-1]:
+                    target = target[part]
+                target[path[-1]] = copy.deepcopy(generator.choice(replacements))
+            combined_states.append(state)
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", "import { readFileSync } from 'node:fs'; import { isDemoState } from './src/model.js'; const states = JSON.parse(readFileSync(0, 'utf8')); process.stdout.write(JSON.stringify(states.map(isDemoState)));"],
+            cwd=ROOT, input=json.dumps(combined_states, ensure_ascii=False),
+            check=True, capture_output=True, text=True,
+        )
+        javascript_validity = json.loads(result.stdout)
+        self.assertEqual(len(javascript_validity), len(combined_states))
+        for index, (state, javascript_valid) in enumerate(zip(combined_states, javascript_validity, strict=True)):
+            self.assertEqual(javascript_valid, valid_state_shape(state), f"combined mutation validator disagreement at case {index}")
+
+    def test_api_rejects_a_write_envelope_without_state(self):
+        status, response = self.request("/api/state", "PUT", {"revision": 0})
+        self.assertEqual(status, 422)
+        self.assertEqual(response["error"], "Invalid casebook state")
+        self.assertEqual(self.request("/api/state"), (200, {"state": None, "revision": 0}))
+
+    def test_api_trimming_matches_javascript_string_trim(self):
+        new_ticket = {
+            "id": "HD-1048", "subject": "Synthetic request", "requester": "Demo User",
+            "assignee": "Unassigned", "category": "Software", "priority": "Normal", "status": "New",
+            "ageMinutes": 0, "firstResponseMinutes": None, "updates": [],
+        }
+        bom_only = self.valid_casebook()
+        bom_only["tickets"] = [{**new_ticket, "subject": "\ufeff"}]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": bom_only})[0], 422)
+        separator = self.valid_casebook()
+        separator["tickets"] = [{**new_ticket, "subject": "\u001c"}]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": separator})[0], 200)
+        note = self.valid_casebook()
+        note["tickets"] = [{
+            **new_ticket, "status": "In progress", "assignee": "R. Patel",
+            "firstResponseMinutes": 6, "updates": ["\u001c" * 8],
+        }]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": note})[0], 200)
+
+    def test_api_rejects_whitespace_only_domain_labels_and_audit_entries(self):
+        fields = ("name", "type", "zone", "uptime", "icon")
+        for field in fields:
+            state = self.valid_casebook()
+            state["nodes"][0][field] = " \ufeff "
+            with self.subTest(asset_field=field):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        finding = {
+            "id": "SEC-1", "title": "Synthetic finding", "asset": "app-srv-02", "severity": "High", "cvss": 8.0,
+            "status": "Open", "owner": "Unassigned", "responsePlan": "", "resolution": "",
+        }
+        for field in ("title", "asset"):
+            state = self.valid_casebook()
+            state["findings"] = [{**finding, field: " \ufeff "}]
+            with self.subTest(finding_field=field):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        state = self.valid_casebook()
+        state["events"] = [" \ufeff "]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        state = self.valid_casebook()
+        state["tickets"] = [{
+            "id": "HD-1", "subject": "Synthetic request", "requester": "A. Example", "assignee": "Unassigned",
+            "category": "Other", "priority": "Normal", "status": "New", "ageMinutes": 0,
+            "firstResponseMinutes": None, "updates": [" \ufeff "],
+        }]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        readiness = {key: False for key in ("scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady")}
+        state = self.valid_casebook()
+        state["maintenance"] = [{
+            "id": "CHG-1", "title": "Synthetic change", "system": "Synthetic host", "window": "Planned · 22:00–22:30",
+            "impact": "Users may see a short restart delay.", "rollback": "Restore the prior snapshot and verify the service.",
+            "validationPlan": "Check sign-in and response time against the baseline.", "owner": "R. Patel", "risk": "Medium",
+            "status": "Pending approval", "readiness": readiness, "history": [" \ufeff "],
+        }]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        self.assertEqual(self.request("/api/state")[1]["revision"], 0)
+
+    def test_api_rejects_whitespace_only_required_ticket_and_change_fields(self):
+        ticket = {
+            "id": "HD-1", "subject": "Synthetic request", "requester": "A. Example", "assignee": "Unassigned",
+            "category": "Other", "priority": "Normal", "status": "New", "ageMinutes": 0,
+            "firstResponseMinutes": None, "updates": [],
+        }
+        for field in ("subject", "requester"):
+            state = self.valid_casebook()
+            state["tickets"].append({**ticket, field: "   "})
+            with self.subTest(ticket_field=field):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        readiness = {key: False for key in (
+            "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
+        )}
+        change = {
+            "id": "CHG-1", "title": "Synthetic ERP change", "system": "Application server · ERP",
+            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
+            "rollback": "Restore the recorded snapshot and verify the service.", "owner": "R. Patel",
+            "risk": "Medium", "status": "Pending approval", "readiness": readiness, "history": [],
+        }
+        for field in ("title", "system", "window", "impact", "rollback"):
+            state = self.valid_casebook()
+            state["maintenance"].append({**change, field: "   "})
+            with self.subTest(change_field=field):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        state = self.valid_casebook()
+        state["maintenance"].append({
+            **change,
+            "readiness": {**readiness, "validationReady": True},
+            "validationPlan": "   ",
+        })
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        accepted = self.valid_casebook()
+        accepted["maintenance"].append({
+            **change,
+            "readiness": {**readiness, "validationReady": True},
+            "validationPlan": "Verify ERP sign-in, response time, and queue depth against baseline.",
+        })
+        status, result = self.request("/api/state", "PUT", {"revision": 0, "state": accepted})
+        self.assertEqual(status, 200)
+        self.assertEqual(result["state"]["maintenance"][0]["readiness"]["validationReady"], True)
+
+    def test_api_evidence_minimums_count_unicode_codepoints(self):
+        state = self.valid_casebook()
+        state["nodes"][1]["investigation"] = {
+            "owner": "R. Patel", "cause": "CPU pressure", "action": "Scale workers", "status": "Resolved",
+            "verification": "ERP login passed; latency and queue depth returned below threshold",
+            "notes": "😀" * 4,
+        }
+        self.assertEqual(
+            self.request("/api/state", "PUT", {"revision": 0, "state": state})[0],
+            422,
+            "four emoji are four code points and do not satisfy the eight-character note requirement",
+        )
+
+    def test_api_accepts_maximum_size_state_with_request_envelope(self):
+        state = self.valid_casebook()
+        state["events"] = [""]
+        compact_size = len(json.dumps(state, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+        state["events"][0] = "x" * (MAX_STATE_BYTES - compact_size)
+        self.assertEqual(
+            len(json.dumps(state, separators=(",", ":"), ensure_ascii=False).encode("utf-8")),
+            MAX_STATE_BYTES,
+        )
+        request_body = json.dumps({"revision": 0, "state": state}).encode("utf-8")
+        self.assertGreater(len(request_body), MAX_STATE_BYTES, "the JSON request envelope adds bytes around the casebook")
+        self.assertLessEqual(len(request_body), MAX_STATE_REQUEST_BYTES)
+        request = urllib.request.Request(
+            self.base_url + "/api/state", data=request_body, method="PUT",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            saved = json.loads(response.read())
+        self.assertEqual(saved["revision"], 1)
+        self.assertEqual(len(json.dumps(saved["state"], separators=(",", ":"), ensure_ascii=False).encode("utf-8")), MAX_STATE_BYTES)
 
 if __name__ == "__main__":
     unittest.main()

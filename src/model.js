@@ -53,6 +53,7 @@ const isText = value => {
   }
   return true;
 };
+const hasContent = value => isText(value) && Boolean(value.trim());
 const nodeSignalFields = {
   "core-sw-01": ["portUtilization", "interfaceErrors"],
   "app-srv-02": ["cpu", "memory", "queueDepth"],
@@ -74,7 +75,7 @@ const appTimestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 function validNode(node) {
   if (!isRecord(node) || !isText(node.id) || !/^[a-z0-9-]+$/.test(node.id) || !nodeSignalFields[node.id]) return false;
-  if (![node.name, node.type, node.zone, node.icon, node.uptime].every(isText) || !nodeStatuses.includes(node.health) || !isRecord(node.signals)) return false;
+  if (![node.name, node.type, node.zone, node.icon, node.uptime].every(hasContent) || !nodeStatuses.includes(node.health) || !isRecord(node.signals)) return false;
   const signalFields = nodeSignalFields[node.id];
   if (!signalFields.every(key => Number.isFinite(node.signals[key]) && node.signals[key] >= 0)) return false;
   if (!(node.latency === null || Number.isFinite(node.latency) && node.latency >= 0)) return false;
@@ -90,15 +91,15 @@ function validNode(node) {
 
 function validFinding(finding) {
   if (!isRecord(finding) || !isText(finding.id) || !/^SEC-\d+$/.test(finding.id)) return false;
-  if (!isText(finding.title) || !findingStatuses.includes(finding.status) || !["Critical", "High", "Medium", "Low"].includes(finding.severity)) return false;
-  if (!Number.isFinite(finding.cvss) || finding.cvss < 0 || finding.cvss > 10 || ![finding.asset, finding.owner, finding.responsePlan, finding.resolution].every(isText)) return false;
+  if (!hasContent(finding.title) || !hasContent(finding.asset) || !findingStatuses.includes(finding.status) || !["Critical", "High", "Medium", "Low"].includes(finding.severity)) return false;
+  if (!Number.isFinite(finding.cvss) || finding.cvss < 0 || finding.cvss > 10 || ![finding.owner, finding.responsePlan, finding.resolution].every(isText)) return false;
   if (finding.status !== "Open" && (!isAssigned(finding.owner) || finding.responsePlan.trim().length < 12)) return false;
   return finding.status !== "Resolved" || finding.resolution.trim().length >= 12;
 }
 
 function validTicket(ticket) {
   if (!isRecord(ticket) || !isText(ticket.id) || !/^HD-\d+$/.test(ticket.id)) return false;
-  if (![ticket.subject, ticket.requester, ticket.assignee].every(isText)) return false;
+  if (![ticket.subject, ticket.requester].every(hasContent) || !isText(ticket.assignee)) return false;
   if (!["Access & accounts", "Hardware", "Network", "Software", "Other"].includes(ticket.category)) return false;
   if (!["Low", "Normal", "High"].includes(ticket.priority) || !ticketStatuses.includes(ticket.status)) return false;
   if (!Number.isFinite(ticket.ageMinutes) || ticket.ageMinutes < 0) return false;
@@ -110,7 +111,7 @@ function validTicket(ticket) {
     && Number.isFinite(Date.parse(ticket.createdAt))
     && new Date(ticket.createdAt).toISOString() === ticket.createdAt
   );
-  if (!validCreatedAt || !Array.isArray(ticket.updates) || !hasDenseElements(ticket.updates) || !ticket.updates.every(isText)) return false;
+  if (!validCreatedAt || !Array.isArray(ticket.updates) || !hasDenseElements(ticket.updates) || !ticket.updates.every(hasContent)) return false;
   if (ticket.status !== "New" && !isAssigned(ticket.assignee)) return false;
   if (ticket.status === "New" && ticket.firstResponseMinutes !== null) return false;
   if (ticket.status !== "New" && (ticket.firstResponseMinutes === null || !ticket.updates.some(update => update.trim().length >= 8))) return false;
@@ -133,10 +134,12 @@ function hasIndependentPeerReview(change) {
 
 function validChange(change) {
   if (!isRecord(change) || !isText(change.id) || !/^CHG-\d+$/.test(change.id)) return false;
-  if (!isText(change.title) || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status)) return false;
+  if (!hasContent(change.title) || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status)) return false;
+  if (["system", "window", "impact", "rollback"].some(key => Object.hasOwn(change, key) && !hasContent(change[key]))) return false;
   if (!isText(change.owner) || !isAssigned(change.owner)) return false;
   if (!isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean")) return false;
-  if (!Array.isArray(change.history) || !hasDenseElements(change.history) || !change.history.every(isText)) return false;
+  if (!Array.isArray(change.history) || !hasDenseElements(change.history) || !change.history.every(hasContent)) return false;
+  if (Object.hasOwn(change, "validationPlan") && !hasContent(change.validationPlan)) return false;
   if (readyChangeStatuses.includes(change.status) && !readinessChecks.every(([key]) => change.readiness[key] === true)) return false;
   if (readyChangeStatuses.includes(change.status) && change.risk === "High" && (change.readiness.peerReview !== true || !hasIndependentPeerReview(change))) return false;
   if (readyChangeStatuses.includes(change.status) && !hasRecordedDecision(change, "Approved by ")) return false;
@@ -210,7 +213,7 @@ export function isDemoState(value) {
   if (value.nodes.length > 32 || value.findings.length > 500 || value.tickets.length > 500 || value.maintenance.length > 300 || value.events.length > 100) return false;
   if (!keys.every(key => hasDenseElements(value[key]))) return false;
   const nodeIds = new Set(value.nodes.map(node => node?.id));
-  if (value.nodes.length !== Object.keys(nodeSignalFields).length || !Object.keys(nodeSignalFields).every(id => nodeIds.has(id)) || !value.events.every(isText)) return false;
+  if (value.nodes.length !== Object.keys(nodeSignalFields).length || !Object.keys(nodeSignalFields).every(id => nodeIds.has(id)) || !value.events.every(hasContent)) return false;
   if (![value.nodes, value.findings, value.tickets, value.maintenance].every(hasUniqueIds)) return false;
   if (!value.nodes.every(validNode) || !value.findings.every(validFinding) || !value.tickets.every(validTicket) || !value.maintenance.every(validChange)) return false;
   const findingIds = new Set(value.findings.map(finding => finding.id));

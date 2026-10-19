@@ -61,6 +61,50 @@ test("demo state validation rejects truncated or malformed saved data", () => {
   assert.equal(isDemoState({ ...migrated, maintenance: [completedRollback] }), true);
 });
 
+test("saved state rejects blank operational labels, identity, and audit entries", () => {
+  for (const field of ["name", "type", "zone", "uptime", "icon"]) {
+    const state = cloneSeed();
+    state.nodes[0][field] = " \ufeff ";
+    assert.equal(isDemoState(state), false, `rejects blank monitored-asset ${field}`);
+  }
+  for (const field of ["title", "asset"]) {
+    const state = cloneSeed();
+    state.findings[0][field] = " \ufeff ";
+    assert.equal(isDemoState(state), false, `rejects blank finding ${field}`);
+  }
+  const event = cloneSeed();
+  event.events[0] = " \ufeff ";
+  assert.equal(isDemoState(event), false);
+  const ticket = cloneSeed();
+  ticket.tickets[0].updates[0] = " \ufeff ";
+  assert.equal(isDemoState(ticket), false);
+  const change = cloneSeed();
+  change.maintenance[0].history = [" \ufeff "];
+  assert.equal(isDemoState(change), false);
+});
+
+test("browser validator enforces ticket evidence and cross-application references", () => {
+  const missingResponse = cloneSeed();
+  missingResponse.tickets[0].firstResponseMinutes = null;
+  assert.equal(isDemoState(missingResponse), false);
+
+  const missingWorkNote = cloneSeed();
+  missingWorkNote.tickets[0].updates = [];
+  assert.equal(isDemoState(missingWorkNote), false);
+
+  const newTicketWithResponse = cloneSeed();
+  newTicketWithResponse.tickets[1].firstResponseMinutes = 3;
+  assert.equal(isDemoState(newTicketWithResponse), false);
+
+  const brokenAssetHandoff = cloneSeed();
+  brokenAssetHandoff.tickets[0].relatedAssetId = "missing-host";
+  assert.equal(isDemoState(brokenAssetHandoff), false);
+
+  const brokenFindingHandoff = cloneSeed();
+  brokenFindingHandoff.maintenance[0].findingId = "SEC-9999";
+  assert.equal(isDemoState(brokenFindingHandoff), false);
+});
+
 test("browser state validation rejects snapshots that violate server-side gates", () => {
   const seed = cloneSeed();
   assert.equal(isDemoState({ ...seed, unexpected: "extension" }), false, "unknown top-level fields are rejected by both validators");

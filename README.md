@@ -90,9 +90,9 @@ See [case studies](docs/case-studies.md) for the decisions modeled in each lab, 
 
 The integrated build passes:
 
-- `npm test`: 25 Node model and accessibility tests, plus 66 Python API/preview tests.
+- `npm test`: 27 Node model and accessibility tests, plus 73 Python API/preview tests.
 - `npm run check`: syntax checks for both JavaScript modules.
-- `node --test --experimental-test-coverage`: 100% model line coverage and 90.11% branch coverage.
+- `node --test --experimental-test-coverage`: 100% model line coverage and 90.21% branch coverage.
 - Chromium verified all six routes at 320, 390, 768, and 1440 px, with no overflow, unnamed visible buttons, page errors, or failed requests; a network isolation action also persisted to the temporary SQLite casebook. Earlier workflow, restore, conflict, and backup checks are recorded in [verification evidence](docs/verification.md).
 
 The test suite uses built-in Node.js and Python libraries. Browser automation used the environment-provided Playwright and Chromium; neither was added as an application dependency.
