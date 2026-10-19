@@ -1397,6 +1397,26 @@ class DemoStateApiTests(unittest.TestCase):
         })
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
 
+    def test_api_rejects_whitespace_only_asset_and_finding_identity(self):
+        fields = ("name", "type", "zone", "uptime", "icon")
+        for field in fields:
+            state = self.valid_casebook()
+            state["nodes"][0][field] = " \ufeff "
+            with self.subTest(asset_field=field):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        finding = {
+            "id": "SEC-1", "title": "Synthetic finding", "asset": "app-srv-02", "severity": "High", "cvss": 8.0,
+            "status": "Open", "owner": "Unassigned", "responsePlan": "", "resolution": "",
+        }
+        for field in ("title", "asset"):
+            state = self.valid_casebook()
+            state["findings"] = [{**finding, field: " \ufeff "}]
+            with self.subTest(finding_field=field):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        self.assertEqual(self.request("/api/state")[1]["revision"], 0)
+
     def test_api_rejects_whitespace_only_required_ticket_and_change_fields(self):
         ticket = {
             "id": "HD-1", "subject": "Synthetic request", "requester": "A. Example", "assignee": "Unassigned",

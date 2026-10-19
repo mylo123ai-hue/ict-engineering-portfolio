@@ -78,6 +78,21 @@ test("demo state validation rejects truncated or malformed saved data", () => {
   assert.equal(isDemoState({ ...saved, maintenance: [{ ...readyChange, status: "Rolled back", rollbackEvidence: "Restored snapshot and confirmed service recovery.", history: [...readyChange.history, "22:30 · Validation failed · ERP response remained above its baseline.", "22:35 · Rollback executed · Restored snapshot and confirmed service recovery."] }] }), true);
 });
 
+test("saved state rejects blank infrastructure labels and security finding identity", () => {
+  const saved = cloneSeed();
+  for (const field of ["name", "type", "zone", "uptime", "icon"]) {
+    const state = cloneSeed();
+    state.nodes[0][field] = " \ufeff ";
+    assert.equal(isDemoState(state), false, `rejects a blank monitored asset ${field}`);
+  }
+  for (const field of ["title", "asset"]) {
+    const state = cloneSeed();
+    state.findings[0][field] = " \ufeff ";
+    assert.equal(isDemoState(state), false, `rejects a blank finding ${field}`);
+  }
+  assert.equal(isDemoState(saved), true);
+});
+
 test("browser state validation matches API evidence gates for worked tickets", () => {
   const missingFirstResponse = cloneSeed();
   missingFirstResponse.tickets[0].firstResponseMinutes = null;

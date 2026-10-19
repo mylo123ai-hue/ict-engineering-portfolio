@@ -197,7 +197,7 @@ def read_validated_history(db):
 def valid_node(node):
     if not is_record(node) or not is_text(node.get("id")) or node["id"] not in NODE_SIGNALS:
         return False
-    if not all(is_text(node.get(key)) for key in ("name", "type", "zone", "uptime", "icon")):
+    if not all(is_text(node.get(key)) and trim_text(node[key]) for key in ("name", "type", "zone", "uptime", "icon")):
         return False
     if not is_one_of(node.get("health"), {"Healthy", "Degraded", "Offline"}):
         return False
@@ -237,7 +237,11 @@ def valid_node(node):
 def valid_finding(finding):
     if not is_record(finding) or not isinstance(finding.get("id"), str) or not re.fullmatch(r"SEC-[0-9]+", finding["id"]):
         return False
-    if not all(is_text(finding.get(key)) for key in ("title", "asset", "owner", "responsePlan", "resolution")):
+    if (
+        not all(is_text(finding.get(key)) for key in ("title", "asset", "owner", "responsePlan", "resolution"))
+        or not trim_text(finding["title"])
+        or not trim_text(finding["asset"])
+    ):
         return False
     if not is_one_of(finding.get("status"), {"Open", "Investigating", "Resolved"}):
         return False

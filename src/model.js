@@ -105,7 +105,7 @@ const readyChangeStatuses = ["Approved", "In progress", "Completed", "Rollback r
 const closedChangeStatuses = ["Completed", "Rolled back"];
 
 function validNode(node) {
-  if (!isRecord(node) || !/^[a-z0-9-]+$/.test(node.id) || !nodeSignalFields[node.id] || ![node.name, node.type, node.zone, node.icon, node.uptime].every(isText) || !nodeStatuses.includes(node.health) || !isRecord(node.signals)) return false;
+  if (!isRecord(node) || !/^[a-z0-9-]+$/.test(node.id) || !nodeSignalFields[node.id] || ![node.name, node.type, node.zone, node.icon, node.uptime].every(value => isText(value) && value.trim()) || !nodeStatuses.includes(node.health) || !isRecord(node.signals)) return false;
   const signalFields = nodeSignalFields[node.id];
   if (!signalFields.every(key => Number.isFinite(node.signals[key]) && node.signals[key] >= 0)) return false;
   if (node.health === "Healthy" && Object.entries(healthySignalThresholds[node.id] || {}).some(([key, threshold]) => node.signals[key] > threshold)) return false;
@@ -118,7 +118,7 @@ function validNode(node) {
 }
 
 function validFinding(finding) {
-  if (!isRecord(finding) || !/^SEC-\d+$/.test(finding.id) || !isText(finding.title) || !findingStatuses.includes(finding.status) || !["Critical", "High", "Medium", "Low"].includes(finding.severity) || !Number.isFinite(finding.cvss) || finding.cvss < 0 || finding.cvss > 10 || !isText(finding.asset) || !isText(finding.owner) || !isText(finding.responsePlan) || !isText(finding.resolution)) return false;
+  if (!isRecord(finding) || !/^SEC-\d+$/.test(finding.id) || !isText(finding.title) || !finding.title.trim() || !findingStatuses.includes(finding.status) || !["Critical", "High", "Medium", "Low"].includes(finding.severity) || !Number.isFinite(finding.cvss) || finding.cvss < 0 || finding.cvss > 10 || !isText(finding.asset) || !finding.asset.trim() || !isText(finding.owner) || !isText(finding.responsePlan) || !isText(finding.resolution)) return false;
   if (finding.status !== "Open" && (!finding.owner.trim() || finding.owner === "Unassigned" || textLength(finding.responsePlan.trim()) < 12)) return false;
   return finding.status !== "Resolved" || textLength(finding.resolution.trim()) >= 12;
 }
