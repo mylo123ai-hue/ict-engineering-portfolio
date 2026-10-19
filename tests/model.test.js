@@ -108,7 +108,10 @@ test("browser state validation rejects snapshots that violate server-side gates"
   assert.equal(isDemoState({ ...cloneSeed(), maintenance: [unresolvedLink] }), false, "change finding references must point to a known finding");
 });
 
-test("browser state validation rejects invalid Unicode text before API submission", () => {
+test("browser state validation accepts valid Unicode pairs and rejects unpaired surrogates", () => {
+  const valid = cloneSeed();
+  valid.events[0] = "Synthetic Unicode check 😀";
+  assert.equal(isDemoState(valid), true);
   const state = cloneSeed();
   state.events[0] = "unpaired surrogate: \ud800";
   assert.equal(isDemoState(state), false);

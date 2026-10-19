@@ -422,7 +422,7 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/state")[0], 503)
         self.assertEqual(self.request("/api/health")[0], 503)
 
-    def test_api_rejects_unencodable_surrogate_text_without_storage_errors(self):
+    def test_api_accepts_unicode_scalar_text_and_rejects_unpaired_surrogates(self):
         for location in ("name", "event", "unknown-field"):
             state = self.valid_casebook()
             if location == "name":
@@ -436,6 +436,11 @@ class DemoStateApiTests(unittest.TestCase):
                 self.assertEqual(status, 422)
                 self.assertIn("error", error)
         self.assertEqual(self.request("/api/state")[1], {"state": None, "revision": 0})
+
+        valid_unicode = self.valid_casebook()
+        valid_unicode["events"].append("Synthetic Unicode check 😀")
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": valid_unicode})[0], 200)
+        self.assertIn("Synthetic Unicode check 😀", self.request("/api/state")[1]["state"]["events"])
 
     def test_stored_non_json_numeric_extensions_fail_closed(self):
         state = self.valid_casebook()
