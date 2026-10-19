@@ -179,11 +179,16 @@ class DemoStateApiTests(unittest.TestCase):
                 stored = self.request("/api/state")[1]["state"]["nodes"][0]["extension"]["value"]
                 self.assertEqual(stored, float(value))
 
+        status, restored = self.request("/api/restore", "POST", {"revision": 3, "sourceRevision": 1})
+        self.assertEqual(status, 200)
+        self.assertEqual(restored["revision"], 4)
+        self.assertEqual(restored["state"]["nodes"][0]["extension"]["value"], float(999_999_999_999_999_999_999))
+
         for value in (99_999_999_999_999_999_999, 9_007_199_254_740_992):
             state = self.valid_casebook()
             state["nodes"][0]["extension"] = {"value": value}
             with self.subTest(rejected_value=str(value)):
-                self.assertEqual(self.request("/api/state", "PUT", {"revision": 3, "state": state})[0], 422)
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 4, "state": state})[0], 422)
 
     def test_null_slots_created_from_sparse_browser_domain_arrays_are_rejected(self):
         for key in ("findings", "tickets", "maintenance", "events"):
