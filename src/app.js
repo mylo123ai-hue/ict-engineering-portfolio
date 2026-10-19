@@ -10,7 +10,7 @@ const navItems = [
   { id: "security", icon: "⬡", label: "Security findings", short: "Security findings", mobileLabel: "Security" },
   { id: "helpdesk", icon: "▤", label: "IT helpdesk", short: "Helpdesk tickets", mobileLabel: "Helpdesk" },
   { id: "network", icon: "⌘", label: "Network isolation", short: "Fault isolation", mobileLabel: "Network" },
-  { id: "maintenance", icon: "◷", label: "Maintenance & rollback", short: "Maintenance", mobileLabel: "Change" }
+  { id: "maintenance", icon: "◷", label: "Maintenance approval & rollback", short: "Maintenance", mobileLabel: "Change" }
 ];
 const storageKey = "northstar-ict-demo-v2";
 const conflictStorageKey = `${storageKey}-sync-conflict-v1`;
@@ -376,7 +376,7 @@ function readinessComplete(change) {
   return planRecorded && readinessChecks.every(([key]) => change.readiness?.[key] === true) && (change.risk !== "High" || change.readiness?.peerReview === true);
 }
 function renderMaintenance() {
-  return `${title("Maintenance & rollback", "Assess readiness before approval, then record implementation and validation outcomes.", newRecordAction("New change request", "new-change", state.maintenance.length, casebookLimits.maintenance, "change requests"))}
+  return `${title("Maintenance approval & rollback", "Assess readiness before approval, then record implementation and validation outcomes.", newRecordAction("New change request", "new-change", state.maintenance.length, casebookLimits.maintenance, "change requests"))}
   ${engineeringBrief("maintenance")}
   <div class="change-banner"><div class="change-banner-icon">◷</div><div><strong>Approval is a risk decision.</strong><p>Every change needs an owner, agreed window, impact check, rollback path, and post-change validation plan.</p></div><span>SYNTHETIC CHANGE CONTROL</span></div>
   <div class="change-stats"><div><span>Pending review</span><strong>${state.maintenance.filter(m => m.status === "Pending approval").length}</strong><i class="stat-pending"></i></div><div><span>Approved / in progress</span><strong>${state.maintenance.filter(m => ["Approved", "In progress"].includes(m.status)).length}</strong><i class="stat-approved"></i></div><div><span>Completed / rollback</span><strong>${state.maintenance.filter(m => ["Completed", "Rolled back"].includes(m.status)).length}</strong><i class="stat-complete"></i></div></div>
