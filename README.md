@@ -2,7 +2,7 @@
 
 **Five interactive ICT operations applications, built as a human-directed AI project.** The portfolio demonstrates practical engineering decisions across infrastructure, security, service desk, network troubleshooting, and change control.
 
-The starting brief was approximately: “Build me something that someone hiring an ICT engineer might find impressive.” Prompt Perfect structured it; Designer applied the configured engineering principles and presented options; the owner selected this portfolio. Luna 6 High implemented the original project and prior improvements. Codex Cloud is completing the final engineering refinement recorded below. The AI systems implemented the code; the owner directed the project and selected its scope.
+The starting brief was approximately: “Build me something that someone hiring an ICT engineer might find impressive.” Prompt Perfect structured it; Designer applied the configured engineering principles and presented options; the owner selected this portfolio. Luna 6 High implemented the original project and prior improvements. Codex Cloud completed the final engineering refinement recorded below. The AI systems implemented the code; the owner directed the project and selected its scope.
 
 **Vanilla JavaScript · Python standard library · SQLite · five applications · synthetic scenarios only**
 
@@ -105,9 +105,9 @@ The test suite uses built-in Node.js and Python libraries. Browser automation us
 | Original implementation | Separate from the improvement budget | Luna 6 High implemented the original project. |
 | Frontend refinement | 3 hours | First completed improvement cycle, directed by the owner. |
 | Backend engineering | 3 hours | Second completed improvement cycle, directed by the owner. |
-| Final engineering refinement | In progress · up to 4 hours | Codex Cloud work on branch `final-cycle/codex-engineering-polish`; elapsed time and completed changes are tracked in the verification record. |
+| Final engineering refinement | 4 hours · completed | Codex Cloud completed the final cycle on branch `final-cycle/codex-engineering-polish`; exact work intervals are in the verification record. |
 
-The improvement budget is six completed hours plus the measured final-cycle time. The original build is separate. The four-hour final-cycle ceiling is not rounded up.
+The three improvement cycles total exactly 10 hours: 3 hours of frontend refinement, 3 hours of backend engineering, and 4 hours of final refinement. The original build is separate and excluded from that total.
 
 ```mermaid
 flowchart LR
