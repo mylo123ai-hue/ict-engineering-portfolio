@@ -90,7 +90,7 @@ See [case studies](docs/case-studies.md) for the decisions modeled in each lab, 
 
 The current final-cycle build passes:
 
-- `npm test`: 22 Node model and accessibility tests, plus 66 Python API/preview tests.
+- `npm test`: 23 Node model and accessibility tests, plus 66 Python API/preview tests.
 - `npm run check`: syntax checks for both JavaScript modules.
 - `node --test --experimental-test-coverage`: 100% model line coverage and 89.41% branch coverage.
 - Chromium checks across five application workflows, responsive routes, mobile dialogs, contrast samples, and browser/API validation agreement. SQLite persistence, revision restore, stale-write conflict, and backup results are recorded in [verification evidence](docs/verification.md).

@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const css = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, "");
+const app = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 
 function declarationsFor(selector) {
   const values = new Map();
@@ -69,4 +70,8 @@ test("operational labels retain readable color contrast", () => {
     const ratio = contrastRatio(foreground, backgroundColor);
     assert.ok(ratio >= 4.5, `${selector} contrast ${ratio.toFixed(2)}:1 is below 4.5:1`);
   }
+});
+
+test("maintenance guidance describes service verification after rollback", () => {
+  assert.match(app, /Record rollback, then verify service against its pre-change baseline\./);
 });
