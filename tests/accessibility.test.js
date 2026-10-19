@@ -80,4 +80,7 @@ test("maintenance guidance describes service verification after rollback", () =>
 test("decorative maintenance and network symbols are hidden from assistive technology", () => {
   assert.match(app, /class="change-banner-icon" aria-hidden="true">◷<\/div>/);
   assert.ok(app.includes('<i aria-hidden=\\"true\\">›</i>'));
+  assert.match(app, /class="date-chip"><span aria-hidden="true">◉<\/span>/);
+  assert.match(app, /data-action="health-refresh"><span aria-hidden="true">↻<\/span> Recheck/);
+  assert.match(app, /<span aria-hidden="true">▣<\/span> \$\{esc\(change\.system\)\}/);
 });
