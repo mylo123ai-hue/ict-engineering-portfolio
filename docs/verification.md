@@ -2,6 +2,8 @@
 
 ## Baseline
 
+For the final four-hour cycle, the inspected starting point was the clean `development` branch at `9f632ad7469f0254ec2b622c112da2499a164ecd` (2026-10-18). It already contained all five interactive applications, the responsive vanilla-JavaScript interface, the loopback Python/SQLite API, revisioned writes, retained history and restore, the backup utility, and the existing automated and browser verification record. The final cycle therefore kept that architecture and focused on confirmed browser/API validation gaps, recovery behavior, recruiter-facing documentation, and real screenshots.
+
 The portfolio began as a static vanilla JavaScript single-page application with five simulated operations demos and browser-local persistence. For this backend cycle, the clean starting point was `development` at `128cae13f8563dc5407d7ca24c75a87d3e07a878`: it already had a loopback Python standard-library JSON API, a SQLite current-state snapshot, compare-and-swap revisions, browser-cache fallback, and a backup command that ran SQLite `quick_check`. An isolated copy of that commit passed 16 Node tests, 15 Python API/preview tests, and `npm run check`. It did not retain server-side revision history or expose a restore endpoint; the backup check did not validate casebook/history consistency or wait until verification to publish the destination. This cycle preserves the working architecture and extends recovery and storage verification.
 
 ## Automated checks
