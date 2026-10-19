@@ -128,8 +128,8 @@ class DemoStateApiTests(unittest.TestCase):
             "findings": [], "tickets": [], "maintenance": [], "events": ["Synthetic demo event"],
         }
 
-    def test_browser_and_api_state_validation_agree_on_edge_case_corpus(self):
-        """Keep the independent browser and server validators aligned at their JSON boundary."""
+    def test_client_javascript_and_api_state_validation_agree_on_edge_case_corpus(self):
+        """Run the client validator under Node and compare it with the live server boundary."""
         result = subprocess.run(
             ["node", "--input-type=module", "-e", "import { cloneSeed } from './src/model.js'; process.stdout.write(JSON.stringify(cloneSeed()));"],
             cwd=ROOT, check=True, capture_output=True, text=True,
@@ -181,14 +181,14 @@ class DemoStateApiTests(unittest.TestCase):
             cwd=ROOT, input=json.dumps([state for _, state in cases], ensure_ascii=False),
             check=True, capture_output=True, text=True,
         )
-        browser_validity = json.loads(result.stdout)
+        javascript_validity = json.loads(result.stdout)
         revision = 0
-        for (label, state), browser_valid in zip(cases, browser_validity, strict=True):
+        for (label, state), javascript_valid in zip(cases, javascript_validity, strict=True):
             with self.subTest(case=label):
-                self.assertEqual(browser_valid, valid_state_shape(state), f"validator disagreement for {label}")
+                self.assertEqual(javascript_valid, valid_state_shape(state), f"validator disagreement for {label}")
                 status, _ = self.request("/api/state", "PUT", {"revision": revision, "state": state})
-                self.assertEqual(status, 200 if browser_valid else 422, label)
-                if browser_valid:
+                self.assertEqual(status, 200 if javascript_valid else 422, label)
+                if javascript_valid:
                     revision += 1
                 self.assertEqual(self.request("/api/state")[1]["revision"], revision)
 
@@ -226,10 +226,10 @@ class DemoStateApiTests(unittest.TestCase):
             cwd=ROOT, input=json.dumps([state for _, state in mutated_cases], ensure_ascii=False),
             check=True, capture_output=True, text=True,
         )
-        browser_validity = json.loads(result.stdout)
-        self.assertEqual(len(browser_validity), len(mutated_cases))
-        for (label, state), browser_valid in zip(mutated_cases, browser_validity, strict=True):
-            self.assertEqual(browser_valid, valid_state_shape(state), f"mutation validator disagreement at {label}")
+        javascript_validity = json.loads(result.stdout)
+        self.assertEqual(len(javascript_validity), len(mutated_cases))
+        for (label, state), javascript_valid in zip(mutated_cases, javascript_validity, strict=True):
+            self.assertEqual(javascript_valid, valid_state_shape(state), f"mutation validator disagreement at {label}")
 
         leaf_paths = []
 
@@ -260,10 +260,10 @@ class DemoStateApiTests(unittest.TestCase):
             cwd=ROOT, input=json.dumps(combined_states, ensure_ascii=False),
             check=True, capture_output=True, text=True,
         )
-        browser_validity = json.loads(result.stdout)
-        self.assertEqual(len(browser_validity), len(combined_states))
-        for index, (state, browser_valid) in enumerate(zip(combined_states, browser_validity, strict=True)):
-            self.assertEqual(browser_valid, valid_state_shape(state), f"combined mutation validator disagreement at case {index}")
+        javascript_validity = json.loads(result.stdout)
+        self.assertEqual(len(javascript_validity), len(combined_states))
+        for index, (state, javascript_valid) in enumerate(zip(combined_states, javascript_validity, strict=True)):
+            self.assertEqual(javascript_valid, valid_state_shape(state), f"combined mutation validator disagreement at case {index}")
 
     def test_state_is_persisted_and_revision_conflicts_are_rejected(self):
         initial_status, initial = self.request("/api/state")
