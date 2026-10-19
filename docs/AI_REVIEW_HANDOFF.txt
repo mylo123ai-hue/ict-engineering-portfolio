@@ -48,11 +48,11 @@ KEY FILES
 
 RECORDED VERIFICATION
 The current verification record says:
-- Final-cycle `npm test`: 17 Node tests and 66 Python tests passed.
+- Final-cycle `npm test`: 17 Node tests and 68 Python tests passed.
 - npm run check and Python compile checks passed.
 - Headless Chromium checks covered the six routes at desktop/tablet/mobile widths, workflow state changes across all five apps, API persistence/history/restore, and no observed browser/HTTP errors in the recorded runs.
 - Backup verification checked SQLite integrity and revision/history consistency.
-- The final cycle captured seven actual Chromium screenshots and checked all six routes at 320, 390, 768, and 1440 CSS px; it also aligned browser-side validation with API evidence gates, Unicode character counts, and the maintenance validation-plan prerequisite.
+- The final cycle captured eight actual Chromium screenshots and checked all six routes at 320, 360, 390, 520, 768, 820, 1024, and 1440 CSS px; it also aligned browser-side validation with API evidence gates, Unicode character counts, and the maintenance validation-plan prerequisite.
 - These are local recorded checks. GitHub Actions has no recorded workflow runs, so there is no CI result to rely on.
 
 Please inspect docs/verification.md for the precise scope and caveats. Treat its statements as claims to verify against code/tests where practical.
