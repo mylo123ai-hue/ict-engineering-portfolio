@@ -30,6 +30,8 @@ test("demo state validation rejects truncated or malformed saved data", () => {
   assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], priority: "Urgent" }] }), false);
   assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], status: "In progress", assignee: "Unassigned" }] }), false);
   assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], createdAt: "not a timestamp" }] }), false);
+  assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], createdAt: "2026" }] }), false);
+  assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[0], createdAt: "0000-01-01T00:00:00.000Z" }] }), false);
   assert.equal(isDemoState({ ...saved, findings: [{ ...saved.findings[0], severity: "<img src=x onerror=alert(1)>" }] }), false);
   assert.equal(isDemoState({ ...saved, findings: [{ ...saved.findings[0], cvss: '9.8"><img src=x>' }] }), false);
   assert.equal(isDemoState({ ...saved, nodes: [{ ...saved.nodes[0], signals: { ...saved.nodes[0].signals, interfaceErrors: "4.8%" } }] }), false);
@@ -41,9 +43,81 @@ test("demo state validation rejects truncated or malformed saved data", () => {
   assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "app-srv-02" ? { ...node, investigation: { owner: "R. Patel", cause: "CPU pressure", action: "Scale worker pool", status: "Resolved" } } : node) }), false);
   assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], status: "In progress", readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])) }] }), false);
   assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], risk: "High", status: "Approved", readiness: { ...Object.fromEntries(readinessChecks.map(([key]) => [key, true])), peerReview: true }, history: ["Approved by Jamie Diaz"] }] }), false);
-  const readyChange = { ...saved.maintenance[0], status: "Completed", readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])), preChangeEvidence: "Baseline health check passed before work.", validationEvidence: "ERP response returned below the agreed threshold." };
+  const readyChange = { ...saved.maintenance[0], status: "Completed", readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])), preChangeEvidence: "Baseline health check passed before work.", validationEvidence: "ERP response returned below the agreed threshold.", history: ["Approved by Jamie Diaz · Readiness and controls reviewed in the window.", "Implementation started in approved window · Baseline health check passed before work.", "Validation passed · ERP response returned below the agreed threshold."] };
   assert.equal(isDemoState({ ...saved, maintenance: [readyChange] }), true);
-  assert.equal(isDemoState({ ...saved, maintenance: [{ ...readyChange, status: "Rolled back", rollbackEvidence: "Restored snapshot and confirmed service recovery." }] }), true);
+  assert.equal(isDemoState({ ...saved, maintenance: [{ ...readyChange, status: "Rolled back", rollbackEvidence: "Restored snapshot and confirmed service recovery.", history: [...readyChange.history, "Rollback executed · Snapshot restored and service recovery confirmed."] }] }), true);
+});
+
+test("browser state validation rejects snapshots that violate server-side gates", () => {
+  const seed = cloneSeed();
+  assert.equal(isDemoState({ ...seed, unexpected: "extension" }), false, "unknown top-level fields are rejected by both validators");
+
+  const unhealthy = cloneSeed();
+  const server = unhealthy.nodes.find(node => node.id === "app-srv-02");
+  server.signals.cpu = 95;
+  server.health = "Healthy";
+  assert.equal(isDemoState(unhealthy), false, "a healthy asset cannot retain a signal above its healthy threshold");
+  server.signals.cpu = 61;
+  server.health = "Degraded";
+  server.investigation = { owner: "R. Patel", cause: "CPU saturation", action: "Scale the worker pool", status: "Investigating" };
+  server.health = "Healthy";
+  assert.equal(isDemoState(unhealthy), false, "an active investigation cannot have a healthy asset status");
+
+  const workedTicket = cloneSeed();
+  const ticket = workedTicket.tickets.find(item => item.id === "HD-1046");
+  ticket.status = "In progress";
+  ticket.assignee = "R. Patel";
+  ticket.firstResponseMinutes = null;
+  ticket.updates = ["short"];
+  assert.equal(isDemoState(workedTicket), false, "worked tickets need a first-response time and a useful work note");
+  ticket.firstResponseMinutes = 4;
+  ticket.updates = ["Reviewed account state and confirmed the access path."];
+  ticket.relatedAssetId = "unknown-node";
+  assert.equal(isDemoState(workedTicket), false, "ticket asset references must point to a known asset");
+
+  const pending = cloneSeed().maintenance[0];
+  const ready = Object.fromEntries(readinessChecks.map(([key]) => [key, true]));
+  const approved = { ...pending, status: "Approved", readiness: ready, history: [] };
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [approved] }), false, "approved changes need matching approval evidence");
+  approved.history = ["Approved by Jamie Diaz · Readiness and controls reviewed in the window."];
+  approved.risk = "High";
+  approved.readiness.peerReview = true;
+  approved.history[0] = "Approved by Jamie Diaz · Peer review by R. Patel · Readiness and controls reviewed in the window.";
+  approved.owner = "R. Patel";
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [approved] }), false, "high-risk changes need an independent reviewer");
+  approved.owner = "Jamie Diaz";
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [approved] }), true, "an independently reviewed high-risk change passes the same gate as the API");
+
+  const rejected = { ...pending, status: "Rejected", history: ["Rejected by Jamie Diaz · The rollback plan lacks a service recovery verification step."] };
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [rejected] }), true, "rejections retain their decision rationale");
+
+  const rollbackRequired = { ...approved, risk: "Medium", status: "Rollback required", preChangeEvidence: "Baseline health check passed before work.", validationEvidence: "Post-change response exceeded the agreed threshold.", history: ["Approved by Jamie Diaz · Readiness and controls reviewed in the window.", "Implementation started in approved window · Baseline health check passed before work.", "Validation failed · Post-change response exceeded the agreed threshold."] };
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [rollbackRequired] }), true);
+  delete rollbackRequired.preChangeEvidence;
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [rollbackRequired] }), false, "rollback-required changes need implementation evidence");
+
+  const unresolvedLink = { ...pending, findingId: "SEC-9999" };
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [unresolvedLink] }), false, "change finding references must point to a known finding");
+});
+
+test("browser state validation rejects invalid Unicode text before API submission", () => {
+  const state = cloneSeed();
+  state.events[0] = "unpaired surrogate: \ud800";
+  assert.equal(isDemoState(state), false);
+});
+
+test("browser state validation applies the API's portable JSON checks to extension fields", () => {
+  const state = cloneSeed();
+  state.nodes[0].futureMetric = Number.MAX_SAFE_INTEGER;
+  assert.equal(isDemoState(state), true, "safe integer extensions remain compatible");
+  state.nodes[0].futureMetric = Number.MAX_SAFE_INTEGER + 1;
+  assert.equal(isDemoState(state), false, "imprecise integer extensions are rejected before writing");
+  state.nodes[0].futureMetric = 1e20;
+  assert.equal(isDemoState(state), false, "integral floats serialized as unsafe integers are rejected");
+  state.nodes[0].futureMetric = 1e21;
+  assert.equal(isDemoState(state), true, "large exponent-form floats remain portable");
+  state.nodes[0].futureMetric = Number.POSITIVE_INFINITY;
+  assert.equal(isDemoState(state), false, "non-finite extensions are rejected");
 });
 
 test("demo state migration preserves a browser save with previous utilization signal names", () => {

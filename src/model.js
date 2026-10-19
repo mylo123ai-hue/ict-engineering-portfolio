@@ -34,7 +34,18 @@ export const seed = {
 export const cloneSeed = () => structuredClone(seed);
 
 const isRecord = value => value !== null && typeof value === "object" && !Array.isArray(value);
-const isText = value => typeof value === "string";
+const isText = value => {
+  if (typeof value !== "string") return false;
+  for (let index = 0; index < value.length; index++) {
+    const unit = value.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+      index++;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) return false;
+  }
+  return true;
+};
 const nodeSignalFields = {
   "core-sw-01": ["portUtilization", "interfaceErrors"],
   "app-srv-02": ["cpu", "memory", "queueDepth"],
@@ -47,43 +58,110 @@ const findingStatuses = ["Open", "Investigating", "Resolved"];
 const ticketStatuses = ["New", "In progress", "Waiting", "Resolved"];
 const changeStatuses = ["Pending approval", "Rejected", "Approved", "In progress", "Completed", "Rollback required", "Rolled back"];
 const readyChangeStatuses = ["Approved", "In progress", "Completed", "Rollback required", "Rolled back"];
-const closedChangeStatuses = ["Completed", "Rolled back"];
+const healthySignalThresholds = {
+  "core-sw-01": { portUtilization: 80, interfaceErrors: 1 },
+  "app-srv-02": { cpu: 80, queueDepth: 25 },
+  "ap-east-14": { missedHeartbeats: 3 }
+};
+const appTimestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 function validNode(node) {
-  if (!isRecord(node) || !/^[a-z0-9-]+$/.test(node.id) || !nodeSignalFields[node.id] || ![node.name, node.type, node.zone, node.icon, node.uptime].every(isText) || !nodeStatuses.includes(node.health) || !isRecord(node.signals)) return false;
+  if (!isRecord(node) || !isText(node.id) || !/^[a-z0-9-]+$/.test(node.id) || !nodeSignalFields[node.id]) return false;
+  if (![node.name, node.type, node.zone, node.icon, node.uptime].every(isText) || !nodeStatuses.includes(node.health) || !isRecord(node.signals)) return false;
   const signalFields = nodeSignalFields[node.id];
   if (!signalFields.every(key => Number.isFinite(node.signals[key]) && node.signals[key] >= 0)) return false;
   if (!(node.latency === null || Number.isFinite(node.latency) && node.latency >= 0)) return false;
+  const healthyThresholds = healthySignalThresholds[node.id] || {};
+  if (node.health === "Healthy" && Object.entries(healthyThresholds).some(([key, threshold]) => node.signals[key] > threshold)) return false;
   if (node.investigation === undefined || node.investigation === null) return true;
   const incident = node.investigation;
-  if (!isRecord(incident) || !isText(incident.owner) || !incident.owner.trim() || incident.owner === "Unassigned" || !isText(incident.cause) || !incident.cause.trim() || !isText(incident.action) || !incident.action.trim() || !["Investigating", "Resolved"].includes(incident.status)) return false;
-  return incident.status !== "Resolved" || isText(incident.verification) && recoveryChecks(node).includes(incident.verification) && isText(incident.notes) && incident.notes.trim().length >= 8;
+  if (!isRecord(incident) || ![incident.owner, incident.cause, incident.action].every(isText)) return false;
+  if (!incident.owner.trim() || incident.owner === "Unassigned" || !incident.cause.trim() || !incident.action.trim() || !["Investigating", "Resolved"].includes(incident.status)) return false;
+  const validResolution = isText(incident.verification) && recoveryChecks(node).includes(incident.verification) && isText(incident.notes) && incident.notes.trim().length >= 8;
+  return incident.status === "Investigating" ? node.health !== "Healthy" : validResolution && node.health === "Healthy";
 }
 
 function validFinding(finding) {
-  if (!isRecord(finding) || !/^SEC-\d+$/.test(finding.id) || !isText(finding.title) || !findingStatuses.includes(finding.status) || !["Critical", "High", "Medium", "Low"].includes(finding.severity) || !Number.isFinite(finding.cvss) || finding.cvss < 0 || finding.cvss > 10 || !isText(finding.asset) || !isText(finding.owner) || !isText(finding.responsePlan) || !isText(finding.resolution)) return false;
+  if (!isRecord(finding) || !isText(finding.id) || !/^SEC-\d+$/.test(finding.id)) return false;
+  if (!isText(finding.title) || !findingStatuses.includes(finding.status) || !["Critical", "High", "Medium", "Low"].includes(finding.severity)) return false;
+  if (!Number.isFinite(finding.cvss) || finding.cvss < 0 || finding.cvss > 10 || ![finding.asset, finding.owner, finding.responsePlan, finding.resolution].every(isText)) return false;
   if (finding.status !== "Open" && (!finding.owner.trim() || finding.owner === "Unassigned" || finding.responsePlan.trim().length < 12)) return false;
   return finding.status !== "Resolved" || finding.resolution.trim().length >= 12;
 }
 
 function validTicket(ticket) {
-  if (!isRecord(ticket) || !/^HD-\d+$/.test(ticket.id) || !isText(ticket.subject) || !isText(ticket.requester) || !["Access & accounts", "Hardware", "Network", "Software", "Other"].includes(ticket.category) || !["Low", "Normal", "High"].includes(ticket.priority) || !ticketStatuses.includes(ticket.status) || !isText(ticket.assignee) || !Number.isFinite(ticket.ageMinutes) || ticket.ageMinutes < 0 || !(ticket.firstResponseMinutes === null || Number.isFinite(ticket.firstResponseMinutes) && ticket.firstResponseMinutes >= 0) || !(ticket.createdAt === undefined || isText(ticket.createdAt) && Number.isFinite(Date.parse(ticket.createdAt))) || !Array.isArray(ticket.updates) || !ticket.updates.every(isText)) return false;
+  if (!isRecord(ticket) || !isText(ticket.id) || !/^HD-\d+$/.test(ticket.id)) return false;
+  if (![ticket.subject, ticket.requester, ticket.assignee].every(isText)) return false;
+  if (!["Access & accounts", "Hardware", "Network", "Software", "Other"].includes(ticket.category)) return false;
+  if (!["Low", "Normal", "High"].includes(ticket.priority) || !ticketStatuses.includes(ticket.status)) return false;
+  if (!Number.isFinite(ticket.ageMinutes) || ticket.ageMinutes < 0) return false;
+  if (!(ticket.firstResponseMinutes === null || Number.isFinite(ticket.firstResponseMinutes) && ticket.firstResponseMinutes >= 0)) return false;
+  const validCreatedAt = ticket.createdAt === undefined || (
+    isText(ticket.createdAt)
+    && appTimestampPattern.test(ticket.createdAt)
+    && Number(ticket.createdAt.slice(0, 4)) > 0
+    && Number.isFinite(Date.parse(ticket.createdAt))
+    && new Date(ticket.createdAt).toISOString() === ticket.createdAt
+  );
+  if (!validCreatedAt || !Array.isArray(ticket.updates) || !ticket.updates.every(isText)) return false;
   if (ticket.status !== "New" && (!ticket.assignee.trim() || ticket.assignee === "Unassigned")) return false;
+  if (ticket.status === "New" && ticket.firstResponseMinutes !== null) return false;
+  if (ticket.status !== "New" && (ticket.firstResponseMinutes === null || !ticket.updates.some(update => update.trim().length >= 8))) return false;
+  if (Object.hasOwn(ticket, "relatedAssetId") && (!isText(ticket.relatedAssetId) || (ticket.relatedAssetId !== "" && !nodeSignalFields[ticket.relatedAssetId]))) return false;
   return ticket.status !== "Resolved" || ticket.updates.some(update => update.includes("requester/service recovery confirmed"));
 }
 
+function hasRecordedDecision(change, marker) {
+  return change.history.some(entry => entry.includes(marker) && entry.split(" · ").at(-1).trim().length >= 12);
+}
+
+function hasIndependentPeerReview(change) {
+  return change.history.some(entry => {
+    const marker = "Peer review by ";
+    if (!entry.includes(marker)) return false;
+    const reviewer = entry.split(marker, 2)[1].split(" · ", 1)[0].trim();
+    return reviewer && reviewer.toLocaleLowerCase() !== change.owner.trim().toLocaleLowerCase();
+  });
+}
+
 function validChange(change) {
-  if (!isRecord(change) || !/^CHG-\d+$/.test(change.id) || !isText(change.title) || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status) || !isText(change.owner) || !change.owner.trim() || change.owner === "Unassigned" || !isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean") || !Array.isArray(change.history) || !change.history.every(isText)) return false;
+  if (!isRecord(change) || !isText(change.id) || !/^CHG-\d+$/.test(change.id)) return false;
+  if (!isText(change.title) || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status)) return false;
+  if (!isText(change.owner) || !change.owner.trim() || change.owner === "Unassigned") return false;
+  if (!isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean")) return false;
+  if (!Array.isArray(change.history) || !change.history.every(isText)) return false;
   if (readyChangeStatuses.includes(change.status) && !readinessChecks.every(([key]) => change.readiness[key] === true)) return false;
-  if (readyChangeStatuses.includes(change.status) && change.risk === "High" && (change.readiness.peerReview !== true || !change.history.some(entry => entry.includes("Peer review by ")))) return false;
-  if (change.status === "In progress" || closedChangeStatuses.includes(change.status)) {
+  if (readyChangeStatuses.includes(change.status) && change.risk === "High" && (change.readiness.peerReview !== true || !hasIndependentPeerReview(change))) return false;
+  if (readyChangeStatuses.includes(change.status) && !hasRecordedDecision(change, "Approved by ")) return false;
+  if (change.status === "Rejected" && !hasRecordedDecision(change, "Rejected by ")) return false;
+  if (["In progress", "Completed", "Rollback required", "Rolled back"].includes(change.status)) {
     if (!isText(change.preChangeEvidence) || change.preChangeEvidence.trim().length < 12) return false;
+    if (!hasRecordedDecision(change, "Implementation started in approved window")) return false;
   }
   if (change.status === "Completed" || change.status === "Rollback required") {
     if (!isText(change.validationEvidence) || change.validationEvidence.trim().length < 12) return false;
+    const outcome = change.status === "Completed" ? "Validation passed" : "Validation failed";
+    if (!hasRecordedDecision(change, outcome)) return false;
   }
-  if (change.status === "Rolled back" && (!isText(change.rollbackEvidence) || change.rollbackEvidence.trim().length < 12)) return false;
+  if (change.status === "Rolled back" && (!isText(change.rollbackEvidence) || change.rollbackEvidence.trim().length < 12 || !hasRecordedDecision(change, "Rollback executed"))) return false;
   return true;
+}
+
+function isPortableJson(value, ancestors = new Set()) {
+  if (value === null || typeof value === "boolean") return true;
+  if (typeof value === "string") return isText(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return false;
+    const jsonNumber = JSON.stringify(value);
+    return Number.isSafeInteger(value) || !Number.isInteger(value) || /e/i.test(jsonNumber);
+  }
+  if (!Array.isArray(value) && (!isRecord(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) || ancestors.has(value)) return false;
+  ancestors.add(value);
+  const valid = Array.isArray(value)
+    ? value.every(item => isPortableJson(item, ancestors))
+    : Object.entries(value).every(([key, item]) => isText(key) && isPortableJson(item, ancestors));
+  ancestors.delete(value);
+  return valid;
 }
 
 const hasUniqueIds = items => new Set(items.map(item => item?.id)).size === items.length;
@@ -109,11 +187,17 @@ export function migrateDemoState(value) {
 }
 
 export function isDemoState(value) {
-  if (!isRecord(value) || !["nodes", "findings", "tickets", "maintenance", "events"].every(key => Array.isArray(value[key]))) return false;
+  // Keep persisted-state rules in sync with scripts/serve.py::valid_state_shape.
+  const keys = ["nodes", "findings", "tickets", "maintenance", "events"];
+  if (!isRecord(value) || Object.keys(value).length !== keys.length || !keys.every(key => Object.hasOwn(value, key) && Array.isArray(value[key])) || !isPortableJson(value)) return false;
+  if (value.nodes.length > 32 || value.findings.length > 500 || value.tickets.length > 500 || value.maintenance.length > 300 || value.events.length > 100) return false;
   const nodeIds = new Set(value.nodes.map(node => node?.id));
   if (value.nodes.length !== Object.keys(nodeSignalFields).length || !Object.keys(nodeSignalFields).every(id => nodeIds.has(id)) || !value.events.every(isText)) return false;
   if (![value.nodes, value.findings, value.tickets, value.maintenance].every(hasUniqueIds)) return false;
-  return value.nodes.every(validNode) && value.findings.every(validFinding) && value.tickets.every(validTicket) && value.maintenance.every(validChange);
+  if (!value.nodes.every(validNode) || !value.findings.every(validFinding) || !value.tickets.every(validTicket) || !value.maintenance.every(validChange)) return false;
+  const findingIds = new Set(value.findings.map(finding => finding.id));
+  return value.tickets.every(ticket => !Object.hasOwn(ticket, "relatedAssetId") || isText(ticket.relatedAssetId) && (ticket.relatedAssetId === "" || Boolean(nodeSignalFields[ticket.relatedAssetId])))
+    && value.maintenance.every(change => !Object.hasOwn(change, "findingId") || isText(change.findingId) && (change.findingId === "" || findingIds.has(change.findingId)));
 }
 
 export function nextTicketId(tickets) {

@@ -1099,7 +1099,7 @@ tbody tr:last-child td {
 .text-action {
   border:0;
   background:transparent;
-  color:#7585e3;
+  color:#4054c1;
   font:600 9px "DM Sans",sans-serif;
   cursor:pointer;
   margin-left:auto;
@@ -1631,7 +1631,7 @@ tbody tr:last-child td {
   font-size:8px;
   font-weight:700
 }
-.sequence-item.complete>span {
+.sequence-item.sequence-pass>span {
   background:#eaf8f3;
   color:#35a588
 }
@@ -1764,17 +1764,11 @@ tbody tr:last-child td {
   place-items:center;
   font-size:8px
 }
-.check-ok {
+.check-pass {
   color:#3a9e85
 }
-.check-ok i {
+.check-pass i {
   background:#eaf8f3
-}
-.check-issue {
-  color:#c28e3b
-}
-.check-issue i {
-  background:#fff5e4
 }
 .diagnostic-result-head+.result-summary~.button {
   margin:0 15px 15px;
@@ -2865,13 +2859,13 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
   margin:4px 0 0
 }
 .check-fail {
-  color:#c66568
+  color:#9b3d3d
 }
 .check-fail i {
   background:#fff0ef
 }
 .check-warning {
-  color:#bd8833
+  color:#80520d
 }
 .check-warning i {
   background:#fff6e5
@@ -3190,7 +3184,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 }
 .dialog-hint {
   font-size:9px;
-  color:#65748a
+  color:#59677d
 }
 .modal-heading p {
   font-size:10px;
@@ -3423,4 +3417,68 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 }
 .synthetic-label {
   color:#765015
+}
+
+/* Keep compact labels and workflow results readable while preserving their color coding. */
+.main-area .page-heading .eyebrow,
+.main-area .priority,
+.main-area .sim-tag {
+  color:#59677d
+}
+.main-area .priority.high {
+  color:#a34242
+}
+.main-area .priority.high i {
+  background:#a34242
+}
+.main-area .sla-pill {
+  color:#27745f
+}
+.main-area .sla-due-soon {
+  color:#80520d
+}
+.main-area .sla-breached {
+  color:#9b3d3d
+}
+.main-area .network-intro p,
+.main-area .note-items>div>span,
+.main-area .note-items p,
+.main-area .sequence-item small {
+  color:#59677d
+}
+.main-area .sequence-item>span {
+  color:#59677d
+}
+.main-area .sequence-item.sequence-pass>span {
+  color:#27745f
+}
+.main-area .sequence-item.sequence-fail>span {
+  color:#9b3d3d
+}
+.main-area .sequence-item.sequence-warning>span {
+  color:#80520d
+}
+.main-area .sequence-item.sequence-blocked>span {
+  color:#59677d
+}
+.main-area .result-summary strong {
+  color:#80520d
+}
+.main-area .check-row {
+  color:#59677d
+}
+.main-area .check-pass {
+  color:#27745f
+}
+.main-area .check-warning {
+  color:#80520d
+}
+.main-area .check-fail {
+  color:#9b3d3d
+}
+.main-area .check-blocked {
+  color:#59677d
+}
+.dialog-root .dialog-hint {
+  color:#59677d
 }

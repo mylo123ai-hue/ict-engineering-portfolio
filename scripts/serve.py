@@ -82,7 +82,12 @@ def is_portable_json(value):
     if type(value) is int:
         return -MAX_SAFE_REVISION <= value <= MAX_SAFE_REVISION
     if type(value) is float:
-        return math.isfinite(value)
+        # Below 1e21, JS serializes integral floats as integer tokens. Refuse
+        # values outside the safe-integer range so the browser can reload them
+        # without changing their JSON meaning. At 1e21 it keeps exponent form.
+        return math.isfinite(value) and (
+            not value.is_integer() or abs(value) <= MAX_SAFE_REVISION or abs(value) >= 1e21
+        )
     if isinstance(value, list):
         return all(is_portable_json(item) for item in value)
     if isinstance(value, dict):
@@ -248,7 +253,8 @@ def valid_ticket(ticket):
         return False
     if "createdAt" in ticket:
         created_at = ticket["createdAt"]
-        if not is_text(created_at):
+        # The browser writes Date.toISOString(); keep this contract identical in both validators.
+        if not is_text(created_at) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z", created_at):
             return False
         try:
             datetime.fromisoformat(created_at.replace("Z", "+00:00"))

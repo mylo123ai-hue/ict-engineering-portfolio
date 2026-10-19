@@ -1042,6 +1042,24 @@ class DemoStateApiTests(unittest.TestCase):
         state["tickets"][0]["updates"] = ["06:14 · Checked the identity service and confirmed the access path"]
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
 
+    def test_ticket_creation_time_uses_the_browser_iso_utc_format(self):
+        state = self.valid_casebook()
+        state["tickets"].append({
+            "id": "HD-502", "subject": "Synthetic timestamp check", "requester": "A. Example",
+            "assignee": "Unassigned", "category": "Other", "priority": "Normal", "status": "New",
+            "ageMinutes": 0, "firstResponseMinutes": None, "createdAt": "2026", "updates": [],
+        })
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+        state["tickets"][-1]["createdAt"] = "2026-10-19T08:00:00.000Z"
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
+
+    def test_float_extensions_keep_the_same_json_form_in_javascript(self):
+        state = self.valid_casebook()
+        state["nodes"][0]["floatExtension"] = 1e20
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+        state["nodes"][0]["floatExtension"] = 1e21
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
+
     def test_change_decisions_and_outcomes_require_matching_audit_evidence(self):
         ready = {key: True for key in (
             "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
