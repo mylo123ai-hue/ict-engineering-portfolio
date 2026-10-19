@@ -85,7 +85,7 @@ flowchart LR
 
 The checks below were run locally; there is no GitHub Actions pipeline configured for this repository.
 
-- `npm test` — **17 JavaScript model tests and 68 Python API/server tests** pass. A cross-runtime regression checks nine states through the live SQLite API and compares browser/Python validation across 2,895 deterministic casebook mutations.
+- `npm test` — **17 JavaScript model tests and 68 Python API/server tests** pass. A cross-runtime regression checks nine states through the live SQLite API and compares browser/Python validation across 3,895 deterministic single-field and combined casebook mutations.
 - `npm run check` — JavaScript syntax checks pass; `python3 -m py_compile scripts/serve.py scripts/backup_demo_state.py` passes.
 - **Chromium workflow check** — exercised an infrastructure investigation and recovery, security triage and evidence-backed resolution, helpdesk ticket creation and first response, network diagnosis with ticket handoff, and the maintenance approval-to-rollback path. Each saved state was read back from the temporary SQLite API.
 - **Responsive/accessibility checks** — 48 Chromium checks across all six routes and widths from 320 to 1440 CSS px found no horizontal overflow, unnamed visible controls, page errors, or external requests. Dialog checks cover initial focus, background inertness, Tab containment, Escape, and focus return. On a fresh 320 px load, the first Tab reached the skip link. A targeted text-contrast pass prompted darker, slightly larger page labels and helpdesk priority/SLA states; its repeat run found no visible app text below 4.5:1 against solid backgrounds. This is not a formal WCAG audit; detailed scope is in [verification.md](docs/verification.md).

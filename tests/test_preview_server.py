@@ -2,6 +2,7 @@ import json
 import copy
 from concurrent.futures import ThreadPoolExecutor
 import os
+import random
 import sqlite3
 import shutil
 import socket
@@ -229,6 +230,40 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(len(browser_validity), len(mutated_cases))
         for (label, state), browser_valid in zip(mutated_cases, browser_validity, strict=True):
             self.assertEqual(browser_valid, valid_state_shape(state), f"mutation validator disagreement at {label}")
+
+        leaf_paths = []
+
+        def collect_leaf_paths(value, path=()):
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    collect_leaf_paths(item, path + (key,))
+            elif isinstance(value, list):
+                for index, item in enumerate(value):
+                    collect_leaf_paths(item, path + (index,))
+            else:
+                leaf_paths.append(path)
+
+        collect_leaf_paths(seed)
+        generator = random.Random(20261019)
+        combined_states = []
+        for _ in range(1000):
+            state = copy.deepcopy(seed)
+            paths = generator.sample(leaf_paths, generator.randint(2, 6))
+            for path in paths:
+                target = state
+                for part in path[:-1]:
+                    target = target[part]
+                target[path[-1]] = copy.deepcopy(generator.choice(replacements))
+            combined_states.append(state)
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", "import { readFileSync } from 'node:fs'; import { isDemoState } from './src/model.js'; const states = JSON.parse(readFileSync(0, 'utf8')); process.stdout.write(JSON.stringify(states.map(isDemoState)));"],
+            cwd=ROOT, input=json.dumps(combined_states, ensure_ascii=False),
+            check=True, capture_output=True, text=True,
+        )
+        browser_validity = json.loads(result.stdout)
+        self.assertEqual(len(browser_validity), len(combined_states))
+        for index, (state, browser_valid) in enumerate(zip(combined_states, browser_validity, strict=True)):
+            self.assertEqual(browser_valid, valid_state_shape(state), f"combined mutation validator disagreement at case {index}")
 
     def test_state_is_persisted_and_revision_conflicts_are_rejected(self):
         initial_status, initial = self.request("/api/state")
