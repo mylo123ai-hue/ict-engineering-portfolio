@@ -1,39 +1,39 @@
-# Portfolio screenshots
+# Screenshot gallery
 
-The screenshots show the local static demo with synthetic data. They do not represent a deployed or connected service.
+These JPEGs were captured from the running application in local Chromium against a temporary SQLite database. The desktop captures are 1440 pixels wide; the mobile homepage is 390 pixels wide. All scenarios and records are synthetic. The browser was headless, and screenshots were captured directly from rendered application pages.
 
-## Homepage: baseline and current
+## Portfolio
 
-The older images are the repository baseline. They show a “live workspace” overview and a nominal status while two synthetic infrastructure alerts are active. The current casebook makes the alert count explicit and presents all five applications with their method and evidence.
+![Homepage, desktop](screenshots/homepage-desktop.jpg)
 
-### Desktop
+![Homepage, mobile](screenshots/homepage-mobile.jpg)
 
-| Before | After |
-| --- | --- |
-| ![Baseline desktop homepage](homepage.jpg) | ![Current desktop homepage](homepage-v3.jpg) |
+## Applications
 
-### Mobile
+### Infrastructure Health Monitor
 
-| Before | After |
-| --- | --- |
-| ![Baseline mobile homepage](homepage-mobile.jpg) | ![Current mobile homepage](homepage-mobile-v3.jpg) |
+![Infrastructure Health Monitor](screenshots/health-desktop.jpg)
 
-## Current backend-connected view
+### Security Findings Dashboard
 
-This local capture shows the persistence status after the synthetic casebook was saved to SQLite. It is not a public or VPS deployment.
+![Security Findings Dashboard](screenshots/security-desktop.jpg)
 
-![Homepage connected to the local SQLite casebook](homepage-backend.jpg)
+### IT Helpdesk Ticket System
 
-The current backend-cycle browser pass opened the portfolio through the documented `localhost` host, confirmed SQLite status, and checked all five application routes at desktop and mobile widths.
+![IT Helpdesk Ticket System](screenshots/helpdesk-desktop.jpg)
 
-![Current backend-cycle browser verification](homepage-backend-cycle.png)
+### Network Fault Isolation Tool
 
-## Application views
+![Network Fault Isolation Tool](screenshots/network-desktop.jpg)
 
-- [Infrastructure Health Monitor](apps/health.jpg)
-- [Security Findings Dashboard](apps/security.jpg)
-- [IT Helpdesk Ticket System](apps/helpdesk.jpg)
-- [Network Fault Isolation Tool](apps/network.jpg)
-- [Maintenance Approval & Rollback](apps/maintenance.jpg)
+### Maintenance Approval & Rollback
 
-The application views show seeded scenarios. Browser interactions are documented in the [verification record](verification.md).
+![Maintenance Approval and Rollback](screenshots/maintenance-desktop.jpg)
+
+## Workflow evidence
+
+The network result shows a reproducible multi-site packet-loss diagnosis and its next discriminating test. The change-control capture shows a failed validation followed by a recorded rollback and recovery evidence.
+
+![Network diagnosis result](screenshots/network-isolation-result.jpg)
+
+![Maintenance rollback result](screenshots/maintenance-rollback.jpg)

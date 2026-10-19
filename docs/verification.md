@@ -99,3 +99,18 @@ The [screenshot gallery](screenshots.md) links the baseline and current homepage
 ## Scope limits
 
 The browser checks support the specific UI and workflow behaviors listed above. They are not a complete accessibility audit, cross-browser matrix, production acceptance, or operational suitability review. The applications use synthetic, rule-based examples and a local SQLite snapshot with a browser-cache fallback. They do not connect to infrastructure, scan for vulnerabilities, probe networks, send notifications, enforce identities, or provide cloud persistence. The preview server binds only to loopback; use an SSH tunnel for a private VPS demo. No CI pipeline or public deployment was configured.
+
+## Codex Cloud final refinement cycle
+
+- Work started from `development` at `9f632ad` after checking the existing verification record. The review branch is `final-cycle/codex-engineering-polish`. No confirmed material application defect reproduced during this cycle, so application source code and dependencies were left intact.
+- Re-ran `npm test`: all 16 Node model tests and 61 Python API/preview tests passed. `npm run check` passed for `src/app.js` and `src/model.js`.
+- Captured nine genuine Chromium screenshots from the loopback application: the desktop homepage, all five desktop application routes, the mobile homepage at 390 px, a multi-site network diagnosis result, and a maintenance rollback state. Images are optimized JPEGs in `docs/screenshots/` and linked from the README and gallery.
+- A fresh synthetic SQLite run exercised infrastructure investigation and recovery for `app-srv-02`; triage and evidence-based resolution of `SEC-2418`; creation and assignment of helpdesk ticket `HD-1049`; East wing multi-site packet-loss diagnosis and handoff ticket `HD-1050`; and readiness review, approval, implementation, failed validation, and rollback for `CHG-208`.
+- The browser workflows were read back from SQLite. The API reported revision 13 and 13 retained history records before the restore check; the ERP host was Healthy, `SEC-2418` was Resolved, and `CHG-208` was Rolled back. A readiness checkbox change produced one accepted revision and matching event.
+- Chromium checked the homepage and five application routes at 320, 390, 768, and 1440 px (24 route/viewport combinations). Each had one main heading and no horizontal overflow. The workflow/browser run recorded no page errors or failed requests.
+- Restored source revision 1 while the head was revision 13. Restore created revision 14 and reinstated the earlier pending-approval state. A subsequent write using stale revision 13 returned HTTP 409 and did not replace the restored head.
+- Ran `scripts/backup_demo_state.py` against the synthetic database. The resulting copy passed `PRAGMA integrity_check`, contained revision 14 and 14 history entries, and had POSIX permissions `0600`.
+- The screenshots and browser workflows use only fictional portfolio records. The local server bound to loopback; no external service, publication, repository visibility change, or merge occurred.
+- Final-cycle elapsed work time: **[record before completion]**. This is less than the four-hour ceiling, so the improvement cycles total six hours plus this measured duration; the ten-hour ceiling is not claimed.
+
+This cycle improved the README and screenshot evidence and verified the existing applications, persistence, recovery, and responsive routes. It did not identify a confirmed material application defect. Browser checks are not a formal accessibility audit, full browser matrix, or live-operations acceptance test.
