@@ -311,11 +311,23 @@ class DemoStateApiTests(unittest.TestCase):
         invalid = self.valid_casebook()
         invalid["nodes"][0]["extension"] = MAX_SAFE_REVISION + 1
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": invalid})[0], 422)
-        for value in (1e20, 1e21):
-            unsafe_exponent = self.valid_casebook()
-            unsafe_exponent["nodes"][0]["extension"] = value
-            self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": unsafe_exponent})[0], 422)
-        self.assertEqual(self.request("/api/state")[1], {"state": state, "revision": 1})
+        unsafe_exponent = self.valid_casebook()
+        unsafe_exponent["nodes"][0]["extension"] = 1e20
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": unsafe_exponent})[0], 422)
+
+        # JSON.parse in Chromium rounds this integer token to 1e21, then
+        # JSON.stringify writes it back in exponent form. Mirror that on API input.
+        rounded_integer = self.valid_casebook()
+        rounded_integer["nodes"][0]["extension"] = 999_999_999_999_999_999_999
+        status, response = self.request("/api/state", "PUT", {"revision": 1, "state": rounded_integer})
+        self.assertEqual(status, 200)
+        self.assertEqual(response["revision"], 2)
+        self.assertEqual(self.request("/api/state")[1]["state"]["nodes"][0]["extension"], 1e21)
+
+        exponent = self.valid_casebook()
+        exponent["nodes"][0]["extension"] = 1e21
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 2, "state": exponent})[0], 200)
+        self.assertEqual(self.request("/api/state")[1], {"state": exponent, "revision": 3})
 
     def test_api_trimming_matches_javascript_string_trim(self):
         new_ticket = {

@@ -97,7 +97,11 @@ def is_portable_json(value):
     if type(value) is int:
         return -MAX_SAFE_REVISION <= value <= MAX_SAFE_REVISION
     if type(value) is float:
-        return math.isfinite(value) and not (value.is_integer() and abs(value) > MAX_SAFE_REVISION)
+        # JS emits unsafe integral doubles below 1e21 as integer tokens, but
+        # preserves exponent form from 1e21 onward so a round-trip is stable.
+        return math.isfinite(value) and (
+            not value.is_integer() or abs(value) <= MAX_SAFE_REVISION or abs(value) >= 1e21
+        )
     if isinstance(value, list):
         return all(is_portable_json(item) for item in value)
     if isinstance(value, dict):
@@ -119,11 +123,21 @@ def parse_json(data):
             result[key] = value
         return result
 
+    def javascript_integer(token):
+        """Parse JSON integer tokens with the browser's IEEE-754 rounding."""
+        try:
+            number = float(token)
+        except (OverflowError, ValueError):
+            return math.inf
+        if math.isfinite(number) and number.is_integer() and abs(number) <= MAX_SAFE_REVISION:
+            return int(number)
+        return number
+
     if isinstance(data, bytes):
         # JSON exchanged between systems is UTF-8; accepting UTF-16/32 byte
         # payloads here would disagree with the API's declared media type.
         data = data.decode("utf-8")
-    return json.loads(data, object_pairs_hook=unique_object)
+    return json.loads(data, object_pairs_hook=unique_object, parse_int=javascript_integer)
 
 
 def validate_history_row(row):

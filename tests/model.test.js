@@ -170,7 +170,8 @@ test("browser state validation matches API evidence gates for worked tickets", (
   assert.equal(isDemoState(unsafeExponentInteger), false);
   const exponentInteger = cloneSeed();
   exponentInteger.nodes[0].extensionCounter = 1e21;
-  assert.equal(isDemoState(exponentInteger), false);
+  assert.equal(isDemoState(exponentInteger), true);
+  assert.equal(JSON.parse(JSON.stringify(exponentInteger)).nodes[0].extensionCounter, 1e21);
 
   const invalidUnicode = cloneSeed();
   invalidUnicode.events = ["\ud800"];
