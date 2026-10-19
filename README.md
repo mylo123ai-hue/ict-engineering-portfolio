@@ -67,7 +67,7 @@ flowchart LR
 - Domain transitions and synthetic fixtures live in `src/model.js`; `src/app.js` renders the workflows and synchronizes state; `src/styles.css` supplies the responsive interface.
 - The Python server validates casebook shape and workflow gates, compares revisions before writes, and commits the snapshot and bounded revision history atomically.
 - Stale edits return `409 Conflict`. The browser keeps an unsynced recovery copy and offers deliberate retry, download, or server-copy actions.
-- Revision history can be inspected and restored through the local API. The backup utility verifies integrity and history consistency before publishing a new backup file.
+- Revision history can be inspected and restored through the local API. The backup utility verifies integrity and history consistency before atomically creating a new backup without overwriting an existing file.
 - Keyboard navigation, labeled controls, focus-managed dialogs, reduced-motion support, and narrow-screen layouts are included. Browser checks found no horizontal overflow across the six routes at 320, 390, 768, and 1440 pixels; this is not a formal accessibility audit.
 
 The SQLite file is outside the repository by default. The server binds to `127.0.0.1` and has no authentication. Keep it local or use a private SSH tunnel; it is not a public service. Scenarios are rule-based examples, not monitoring, security scanning, or network probes.
