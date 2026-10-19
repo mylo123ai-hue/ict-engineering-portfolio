@@ -6,7 +6,7 @@ The portfolio began as a static vanilla JavaScript single-page application with 
 
 ## Automated checks
 
-- `npm test` — 16 Node model tests and 61 Python standard-library API/preview tests pass in the current build.
+- At the backend-cycle checkpoint, `npm test` passed 16 Node model tests and 61 Python standard-library API/preview tests. The final-cycle run now passes 17 Node tests and 61 Python tests; details are recorded below.
 - `npm run check` — syntax checks for `src/app.js` and `src/model.js` pass without extra dependencies.
 - `node --test --experimental-test-coverage` — model has 100% line coverage and 91.82% branch coverage in the most recent recorded run.
 - Tests cover malformed, duplicate-ID, unsupported-asset, and incomplete persisted state; migration of saved database, firewall utilization signals, progressed tickets, and approved changes; SLA calculation and first-response recording on ticket ownership; server-side first-response and work-note requirements on worked tickets; assigned ticket transitions and verified resolution; security ownership and closure evidence; incident cause/action and recovery evidence; network fault domains across all 64 combinations of the four selectable sites, four symptoms, and four impact scopes; change readiness; independent peer review distinct from the owner; and the written-evidence gates for approval, rejection, implementation start, validation, and rollback.
@@ -99,3 +99,33 @@ The [screenshot gallery](screenshots.md) links the baseline and current homepage
 ## Scope limits
 
 The browser checks support the specific UI and workflow behaviors listed above. They are not a complete accessibility audit, cross-browser matrix, production acceptance, or operational suitability review. The applications use synthetic, rule-based examples and a local SQLite snapshot with a browser-cache fallback. They do not connect to infrastructure, scan for vulnerabilities, probe networks, send notifications, enforce identities, or provide cloud persistence. The preview server binds only to loopback; use an SSH tunnel for a private VPS demo. No CI pipeline or public deployment was configured.
+
+## Final engineering refinement cycle
+
+**Cycle start:** 2026-10-19 06:44:25 UTC. **Engineering and verification work completed:** 2026-10-19 07:02:25 UTC (**18 minutes elapsed**). The local review commit and final report followed immediately.
+
+The starting point was `development` at `9f632ad7469f0254ec2b622c112da2499a164ecd`. The repo already had five working synthetic applications, a loopback Python API, SQLite persistence, retained history and restore, case studies, and extensive prior verification. Side-by-side validation review found that browser-side state validation missed API rules for worked-ticket evidence, ticket-to-asset and change-to-finding references, list limits, healthy-asset thresholds, incident lifecycle state, and change decision-log evidence. High-risk peer review could also be attributed to the change owner in a locally accepted casebook. The browser validator now checks those invariants plus the API's top-level shape, portable JSON values, Unicode scalar strings, and 1 MB snapshot size. Focused Node regression coverage includes invalid ticket evidence/links, missing change decisions, same-owner peer review, threshold disagreement, extra top-level fields, out-of-range integer values, malformed Unicode, and oversized data. Normal UI workflows were already producing valid casebook state; the change makes invalid imported or edited state fail before it reaches the API.
+
+### Final-cycle automated checks
+
+- `npm test` — 17 Node model tests and 61 Python API/server tests passed.
+- `npm run check` — `src/app.js` and `src/model.js` syntax checks passed.
+- `python3 -B -m py_compile scripts/serve.py scripts/backup_demo_state.py` — passed.
+- `git diff --check` — passed.
+
+### Final-cycle browser and persistence checks
+
+- Headless Chromium 154 with the environment Playwright 1.62.0 package ran against a fresh temporary SQLite database on `127.0.0.1:4173`.
+- The browser completed ERP investigation and recovery; SEC-2418 triage and evidence-backed resolution; helpdesk ticket creation, assignment, and first response; East wing packet-loss diagnosis and evidence handoff into a helpdesk ticket; and CHG-208 readiness, approval, approved-window implementation, failed validation, and documented rollback. Each completed state was read back from SQLite. The integrated workflow run reached revision 13; history health matched the head and record count.
+- Browser route checks opened the homepage and all five applications at 320, 390, 768, and 1440 CSS pixels (24 route/viewport combinations). Every route had one page-level heading and no horizontal page overflow. The homepage was also captured at 390 px with no overflow.
+- A separate control-name sweep covered all six routes at 320, 390, and 1440 px (18 route/viewport combinations). It found no visible controls without a detected accessible name, no page overflow, and exactly one application heading per route. Keyboarding to the skip link and activating it focused the main content. This targeted check is not an accessibility conformance audit.
+- Browser page errors, local HTTP request failures, and requests to external hosts were all zero in the final capture/workflow run.
+- Seven real screenshots were captured from the running app: desktop and 390 px mobile homepages, plus completed workflow states for each application. The compressed images are in `docs/screenshots/final-cycle/` and embedded in the README and [gallery](screenshots.md).
+- A stale `/api/state` write with revision 0 received HTTP 409 and left the revision-13 snapshot unchanged. Restoring revision 12 created revision 14; restoring revision 13 then created revision 15. `/api/health` reported revision 15 and 15 retained records.
+- A backup made with the explicit temporary database path passed `PRAGMA integrity_check`, reopened with the rolled-back casebook at revision 15, retained all 15 history rows, and had POSIX mode `0600`.
+
+### Corrections and limits
+
+- The first browser capture script incorrectly expected every monitored asset to become healthy after recovering the ERP host. The seeded East wing access point is a separate unresolved alert, so the check was corrected to verify the ERP host recovery and preserve the AP alert. The application behavior was correct.
+- The first backup invocation used the default database path instead of the temporary test database and correctly reported that no default casebook existed. Re-running with `ICT_PORTFOLIO_DB` set to the temporary database succeeded as documented above.
+- Screenshots and browser flows use synthetic state. No real integrations, production services, remote VPS, public deployment, CI pipeline, formal accessibility audit, or non-Chromium browser matrix were tested in this cycle.

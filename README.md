@@ -1,10 +1,96 @@
 # Northstar · ICT Engineering Portfolio
 
-A recruiter-facing casebook with five interactive ICT operations simulations. Each application walks through a synthetic scenario from signal or request, through investigation and decision, to a recorded outcome. The frontend is a no-build vanilla JavaScript app; a small Python standard-library server provides a same-origin API and SQLite persistence. No application packages, cloud services, or production integrations are used.
+**Five interactive ICT operations applications that show how an engineer investigates, decides, verifies, and records the outcome.** This recruiter-facing casebook combines infrastructure monitoring, security response, IT service management, network fault isolation, and maintenance change control in a responsive web interface.
 
-## Run locally
+The applications run on synthetic scenarios. Their workflows write to a local Python API and SQLite casebook so investigation notes, handoffs, decisions, recovery evidence, and revisions can be inspected after reload. They do not connect to real infrastructure.
 
-Requires Node.js 20+ for automated tests and Python 3.10+ for the local server. No install step is needed.
+**Human-directed, AI-implemented:** the owner selected the project and set its engineering principles. Luna 6 High implemented the original build; Codex Cloud completed the improvement cycles described below.
+
+<p align="center"><a href="docs/screenshots/final-cycle/homepage-desktop.jpg"><img src="docs/screenshots/final-cycle/homepage-desktop.jpg" alt="Northstar ICT Engineering Portfolio homepage showing five operational applications and a SQLite-backed synthetic casebook" width="100%"></a></p>
+
+<p align="center"><strong>Current application · desktop · synthetic casebook saved to local SQLite</strong></p>
+
+## What the portfolio demonstrates
+
+Each lab presents a concrete operational situation, guided investigation, constrained decision, and recorded evidence. Use the left navigation or the casebook cards to open each application.
+
+| Application | Engineering work shown |
+| --- | --- |
+| **Infrastructure Health Monitor** | Correlate host and availability signals, document a cause hypothesis and action, then close an incident only after a recovery check. |
+| **Security Findings Dashboard** | Consider exposure and business impact, assign an owner, document a response plan, and resolve only with verification evidence. |
+| **IT Helpdesk Ticket System** | Capture impact, assign ownership, track illustrative first-response targets, preserve work notes, and confirm resolution with the requester. |
+| **Network Fault Isolation Tool** | Compare client, gateway, DNS, and upstream checkpoints; identify a likely fault boundary and hand findings to a ticket. |
+| **Maintenance Approval & Rollback** | Gate change approval on readiness evidence, confirm the window and baseline, record validation, and document recovery after a failed check. |
+
+### Real browser captures
+
+These screenshots were captured from the running application in headless Chromium against a temporary SQLite database. The records and people shown are fictional. The full-resolution image opens when selected.
+
+| Infrastructure recovery | Security remediation |
+| --- | --- |
+| [![Health monitor showing the ERP host recovered with measured signals and one separate synthetic alert still open](docs/screenshots/final-cycle/health-recovery.jpg)](docs/screenshots/final-cycle/health-recovery.jpg) | [![Security dashboard showing SEC-2418 resolved with owner, plan, and evidence while other findings remain visible](docs/screenshots/final-cycle/security-remediation.jpg)](docs/screenshots/final-cycle/security-remediation.jpg) |
+
+| Helpdesk ownership and response | Network fault isolation |
+| --- | --- |
+| [![Helpdesk queue with a newly created ticket assigned to an engineer and first response recorded](docs/screenshots/final-cycle/helpdesk-first-response.jpg)](docs/screenshots/final-cycle/helpdesk-first-response.jpg) | [![Network diagnostic identifying a likely East wing wireless access point or local uplink fault and next test](docs/screenshots/final-cycle/network-isolation.jpg)](docs/screenshots/final-cycle/network-isolation.jpg) |
+
+| Maintenance recovery |
+| --- |
+| [![Maintenance request showing approval, implementation, failed validation, and documented rollback evidence](docs/screenshots/final-cycle/maintenance-rollback.jpg)](docs/screenshots/final-cycle/maintenance-rollback.jpg) |
+
+#### Responsive view
+
+![Genuine 390-pixel mobile Chromium capture of the portfolio homepage, its application cards, and synthetic operational summary](docs/screenshots/final-cycle/homepage-mobile.jpg)
+
+## How the project was made
+
+The work began with a single owner prompt: “Build me something that someone hiring an ICT engineer might find impressive.” Prompt Perfect structured the request for the owner’s custom-configured Designer. Designer applied the owner’s engineering principles and proposed project options; the owner selected the ICT Engineering Portfolio. **Luna 6 High implemented the original applications. Codex Cloud performed the later engineering work.**
+
+| Stage | Work | Time |
+| --- | --- | --- |
+| Original build · Luna 6 High | Implemented the five application simulations and initial portfolio. This work is separate from the improvement-cycle budget. | Original build |
+| Frontend improvement · Codex Cloud | Refined recruiter-facing presentation, application workflows, responsive layouts, and accessibility. | 3 hours, as recorded by the owner |
+| Backend improvement · Codex Cloud | Added the local API, SQLite persistence, revision-aware writes, retained history, restore, and verified backups. | 3 hours, as recorded by the owner |
+| Final engineering refinement · Codex Cloud | Corrected client/API ticket-validation gaps, captured and integrated the finished app states, and refreshed the README and evidence. | See the measured duration in [final-cycle verification](docs/verification.md) |
+
+The owner directed the project, chose the solution, and reviewed the work. Source-code authorship is attributed to the AI systems that implemented each stage; this README does not represent the code as personally hand-written by the owner.
+
+## Architecture
+
+The project keeps a small, dependency-free architecture: vanilla JavaScript in the browser, a Python standard-library server, and a local SQLite file. Browser storage preserves a recovery copy if the local API is unavailable. The server listens on loopback only.
+
+```mermaid
+flowchart LR
+    UI[Browser · five applications] -->|JSON with expected revision| API[Python standard-library API]
+    UI -.->|local fallback and recovery copy| LS[Browser local storage]
+    API -->|validate and compare revision| DB[(SQLite casebook)]
+    DB -->|checked, no-overwrite copy| Backup[SQLite backup]
+```
+
+| Area | Implementation |
+| --- | --- |
+| Frontend | No-build HTML, responsive CSS, and vanilla JavaScript; `src/model.js` owns fixtures and domain transitions, while `src/app.js` renders workflows and synchronizes state. |
+| API | `scripts/serve.py` serves same-origin static assets and JSON endpoints on `127.0.0.1:4173`. It validates host, request framing, payload size, and casebook invariants. |
+| Persistence | SQLite stores the active casebook and up to 25 consecutive snapshots. Compare-and-swap revisions reject stale writes; restore creates a new revision and records its source. |
+| Recovery | `scripts/backup_demo_state.py` checks database integrity and history consistency, then creates a permission-restricted backup without overwriting an existing destination. |
+| Dependencies | Python standard library and Node built-ins for the app and tests. No install step, framework, hosted database, or external service. |
+
+## Verification
+
+The checks below were run locally; there is no GitHub Actions pipeline configured for this repository.
+
+- `npm test` — **17 JavaScript model tests and 61 Python API/server tests** pass.
+- `npm run check` — JavaScript syntax checks pass; `python3 -m py_compile scripts/serve.py scripts/backup_demo_state.py` passes.
+- **Chromium workflow check** — exercised an infrastructure investigation and recovery, security triage and evidence-backed resolution, helpdesk ticket creation and first response, network diagnosis with ticket handoff, and the maintenance approval-to-rollback path. Each saved state was read back from the temporary SQLite API.
+- **Responsive browser check** — opened all six routes at 320, 390, 768, and 1440 CSS px (24 route/width combinations); none overflowed. A further 18 checks at 320, 390, and 1440 px found one heading per route and no visible controls without an accessible name. Keyboarding to the skip link focused the main content. This is a focused check, not a formal accessibility audit; prior route and interaction evidence is in [verification.md](docs/verification.md).
+- **Recovery check** — a stale write returned HTTP 409 without changing revision 13; restoring revisions 12 and 13 created revisions 14 and 15; `/api/health` matched the 15-row history head. A backup passed `PRAGMA integrity_check`, retained all 15 history rows and the rolled-back case, and had POSIX mode `0600`.
+- **Browser errors and external requests** — none observed in the final capture/workflow run.
+
+See the [verification record](docs/verification.md) for test scope, browser steps, prior-cycle evidence, and limits. See the [screenshot gallery](docs/screenshots.md) for all current captures and selected earlier views.
+
+## Run the demo locally
+
+Requirements: Python 3.10+ and Node.js 20+. No package installation is needed.
 
 ```sh
 npm test
@@ -12,105 +98,17 @@ npm run check
 npm start
 ```
 
-Open <http://127.0.0.1:4173>. The server binds to loopback and validates supplied Host values against `localhost` and `127.0.0.1` (HTTP/1.0 clients without a Host header remain usable). It serves only application and documentation assets, blocks hidden workspace paths, disables directory listings, and exposes `/api/state` for the synthetic casebook snapshot. Host validation reduces DNS-rebinding exposure for this unauthenticated local demo; it does not make the server suitable for public exposure. Static and API responses include a same-origin Content Security Policy, MIME-sniffing and framing protections, and a no-referrer policy. SQLite state defaults to `~/.local/share/northstar-ict-portfolio/demo.sqlite3`; set `ICT_PORTFOLIO_DB` to choose another file. Existing V2 browser data is imported on the first run when the database is empty. The browser keeps a local cache and falls back to it if the API is unavailable.
+Open <http://127.0.0.1:4173>. Route directly to an app with `#health`, `#security`, `#helpdesk`, `#network`, or `#maintenance`. The default SQLite file lives outside the repository at `~/.local/share/northstar-ict-portfolio/demo.sqlite3`; `ICT_PORTFOLIO_DB` can select another path. For backup, restore, API examples, and the private SSH-tunnel workflow, see [backend operations](docs/backend-operations.md).
 
-The overview links to each application. For a direct local route, append `#health`, `#security`, `#helpdesk`, `#network`, or `#maintenance` to that address.
+## Scope and limitations
 
-## Backing up the casebook
+All names, findings, assets, requests, metrics, checks, and change outcomes are synthetic. Health changes, security remediation, network diagnostics, service-desk actions, and change control are simulations: there are no real probes, scans, notifications, external integrations, or infrastructure actions.
 
-Create a consistent SQLite backup outside the repository. On POSIX systems the backup file is restricted to its owner (`0600`). The command verifies SQLite integrity and snapshot/history consistency in a temporary file, then publishes the complete backup atomically. The destination must be new; an existing backup is never overwritten.
+The local SQLite casebook is intended for a single operator and a private demo. The server has no authentication or multi-user authorization and must not be exposed publicly. History is bounded and stored in the same database; it is a recovery feature, not an immutable audit log. Browser verification is not a formal WCAG audit, a production acceptance test, or a cross-browser compatibility matrix.
 
-```sh
-python3 scripts/backup_demo_state.py ~/.local/share/northstar-ict-portfolio/casebook-backup.sqlite3
-```
+## Project notes
 
-To restore a backup, stop the server first, keep a copy of the current database, copy the backup to the configured database path, and restart the server. For the default path:
-
-```sh
-mv ~/.local/share/northstar-ict-portfolio/demo.sqlite3 ~/.local/share/northstar-ict-portfolio/demo-before-restore-$(date -u +%Y%m%dT%H%M%SZ).sqlite3
-cp ~/.local/share/northstar-ict-portfolio/casebook-backup.sqlite3 ~/.local/share/northstar-ict-portfolio/demo.sqlite3
-```
-
-If `ICT_PORTFOLIO_DB` points elsewhere, use that path for both commands. These files contain synthetic portfolio data.
-
-## Inspecting and restoring revisions
-
-The API retains the 25 newest accepted snapshots. On the VPS or through the SSH tunnel, inspect the list and a specific revision with:
-
-```sh
-curl -fsS http://127.0.0.1:4173/api/history | python3 -m json.tool
-curl -fsS http://127.0.0.1:4173/api/history/6 | python3 -m json.tool
-```
-
-To restore revision 6 when the current head is revision 8, send the current head and source revision. Replace those example numbers with values from your history response:
-
-```sh
-curl -fsS -X POST http://127.0.0.1:4173/api/restore \
-  -H 'Content-Type: application/json' \
-  -d '{"revision":8,"sourceRevision":6}' | python3 -m json.tool
-```
-
-The restore becomes revision 9 and records that it came from revision 6. If another client changes the casebook first, the request returns HTTP 409 and leaves the newer state intact. Reload the portfolio in any open browser to load the restored server snapshot. Revision restore is an API operation; the portfolio does not expose a restore button.
-
-## Viewing from a VPS
-
-With your GitHub SSH key authorized for the private repository, clone the `development` branch on the VPS and run `npm start` there:
-
-```sh
-git clone --branch development git@github.com:mylo123ai-hue/ict-engineering-portfolio.git
-cd ict-engineering-portfolio
-npm start
-```
-
-The server deliberately listens on `127.0.0.1:4173`. From your own computer, create an SSH tunnel:
-
-```sh
-ssh -N -L 4173:127.0.0.1:4173 your-user@your-vps
-```
-
-Then open <http://127.0.0.1:4173> on your computer. Keep the SSH session open while browsing. The preview has no authentication and must remain on loopback; do not bind it to a public interface or open its port in a firewall.
-
-## The five applications
-
-| Application | Engineering evidence | Demonstration |
-| --- | --- | --- |
-| Infrastructure Health Monitor | Correlate threshold signals, record a likely cause and action, verify recovery against service metrics | Investigate an alert, then record a recovery check |
-| Security Findings Dashboard | Prioritise exposure and impact; assign ownership and a response plan; close only with verification evidence | Triage or resolve a synthetic finding |
-| IT Helpdesk Ticket System | Capture requester impact, assign ownership, track a priority-based response target, maintain work notes and valid lifecycle transitions | Create a ticket or progress a queued request |
-| Network Fault Isolation Tool | Move from impact scope through client, gateway and service checks; distinguish local, DNS and upstream fault domains | Run a diagnostic and hand the findings to the service desk |
-| Maintenance Approval & Rollback | Gate approval on readiness evidence; document impact, validation, implementation decision and recovery path | Review a change, validate it, or route failure into rollback |
-
-All actions are simulations. They update the local SQLite casebook and browser cache; they never contact infrastructure or real users. Revision checks detect concurrent edits. On a conflict or outage, the browser keeps an unsynced local snapshot and offers a JSON backup, a safe retry using the last acknowledged revision, and a confirmed option to use the current server copy.
-
-## Engineering case studies
-
-See [the case studies](docs/case-studies.md) for the problem, investigation, decision, verification and lesson represented by each scenario. [Verification evidence](docs/verification.md) records the checks actually run and their limits. The [before-and-after screenshot gallery](docs/screenshots.md) shows the recruiter-facing redesign and all five applications.
-
-## Architecture and limits
-
-```mermaid
-flowchart LR
-  Browser[Browser apps] -->|revisioned JSON| API[Python standard-library API]
-  Browser -.->|offline recovery cache| LocalStorage[Browser local storage]
-  API -->|validate and compare revision| SQLite[(SQLite casebook)]
-  SQLite -->|consistent copy| Backup[SQLite backup file]
-```
-
-The frontend is a no-build vanilla JavaScript single-page interface: `src/model.js` owns synthetic fixtures and domain transitions, `src/app.js` renders workflows and synchronizes the local casebook, and `src/styles.css` provides the responsive design system. `scripts/serve.py` serves the static assets and a same-origin JSON API using Python's standard library; `sqlite3` persists the current casebook and a bounded history of the 25 newest accepted revisions. The database is stored outside the repository by default. Tests use Node's and Python's standard libraries; there are no installed application packages.
-
-All names, alerts, metrics, findings, tickets, changes and outcomes are fictional. Diagnostic results are rule-based examples, not live probes. SQLite persistence is local to the server and intended for a single operator or a private SSH-tunneled demo. There is no authentication, authorization, multi-user account model, cloud backup, integration, real notification, or operational control plane. Do not expose the preview server publicly.
-
-### API contract
-
-- `GET /api/state` returns `{ "state": null, "revision": 0 }` for a new database, or the current snapshot and revision. Persisted snapshots are revalidated on read and checked against the active history record in one SQLite read transaction; invalid or mismatched stored state returns `503` rather than reaching the browser.
-- `PUT /api/state` accepts `{ "state": <casebook>, "revision": <expected revision> }` as UTF-8 JSON. Requests and stored snapshots are capped at 1 MB and checked against core casebook fields, workflow gates, and consistency between monitored health, the displayed synthetic thresholds, and investigation status. A worked ticket needs an assigned owner, first-response time, and meaningful work note; a new ticket cannot claim a first response. Change decisions and outcomes need corresponding evidence entries, and high-risk approvals need an independent reviewer distinct from the change owner. Cross-application ticket asset and change-to-finding links must refer to records in the casebook. Integer values across the snapshot, including extension fields, must stay within JavaScript's exact integer range. The active snapshot and history record commit in one SQLite transaction. Stale writes return `409 Conflict`, leaving the browser's unsynced copy available for recovery.
-- `GET /api/history` lists the 25 newest retained revisions with UTC timestamps, record counts and restore lineage. `GET /api/history/{revision}` reads a retained snapshot; corrupted or invalid stored history returns `503`.
-- `POST /api/restore` accepts `{ "revision": <expected current revision>, "sourceRevision": <retained revision> }`, with a 4 KiB request-body cap. It checks the expected head, reads the source and writes the new revision in one SQLite transaction. A stale restore returns `409`; an expired or unknown source at the current head returns `404`; a retained source that fails stored-state validation returns `503`.
-- Existing databases are upgraded in place by seeding their current saved snapshot into the new history table; revisions from before this upgrade cannot be reconstructed. SQLite `user_version` is set to schema version 2; startup refuses a database marked with a newer schema, and every casebook API operation fails closed if the schema version later changes while the server is running.
-- `/api/health` reports the current revision, schema version, retained-history count and configured limit. It validates every retained record and confirms the active snapshot matches the newest history entry; corrupt history returns `503` and blocks further writes/restores until repaired. Malformed JSON or ambiguous/unsupported request headers and framing return `400`, invalid state shape returns `422`, oversized bodies return `413`, unsupported media types return `415`, and SQLite storage failures return `503`.
-
-The revision history is a recovery aid rather than an immutable security audit log: it is stored in the same local SQLite file, retains only the 25 newest consecutive snapshots, and can be changed by an operator with filesystem access. The database backup command checks SQLite integrity, the retained records and the active/history head relationship, and includes both tables.
-
-## Personalizing the portfolio
-
-This build intentionally uses a generic demo operator and fictional case studies. Before presenting it as your own job application portfolio, add your identity and only verified, non-sensitive work samples. Keep the simulated cases clearly labeled and do not describe them as incidents or changes from your employment history.
+- [Engineering case studies](docs/case-studies.md) — problem, investigation, decision, verification, and lesson for each scenario.
+- [Final-cycle screenshots](docs/screenshots.md) — real captures from the running application.
+- [Verification record](docs/verification.md) — exact tests, browser evidence, and known scope limits.
+- [Backend operations](docs/backend-operations.md) — local data, backups, revisions, restore, and safe VPS viewing.

@@ -1,0 +1,82 @@
+ICT ENGINEERING PORTFOLIO — AI REVIEW HANDOFF
+Prepared: 2026-10-19
+
+PURPOSE
+Please independently review the implementation and evidence in this repository. Focus on correctness, security boundaries, workflow quality, test gaps, and whether the documentation accurately describes the code. Do not assume the simulated scenarios represent real operations.
+
+REPOSITORY AND BRANCH
+Repository: https://github.com/mylo123ai-hue/ict-engineering-portfolio
+Repository visibility: Private
+Review branch: final-four-hour-cycle (local branch, not pushed)
+Base checkpoint: development at 9f632ad7469f0254ec2b622c112da2499a164ecd
+Review HEAD: use the latest commit on final-four-hour-cycle
+Default branch: main (currently only the initial README commit; it does not contain the portfolio source yet)
+
+The source files are on development in GitHub. The final-cycle changes are on a local-only branch named `final-four-hour-cycle` and have not been pushed, merged, or published. To review the final-cycle source in the shared Cloud Codex workspace, run `git switch final-four-hour-cycle`. GitHub still shows the prior development baseline; if its page shows only README.md, switch the branch selector from main to development, or open:
+https://github.com/mylo123ai-hue/ict-engineering-portfolio/tree/development
+
+To fetch the prior development baseline (not the unpushed final cycle), use an authorized account because the repository is private:
+  git clone --branch development git@github.com:mylo123ai-hue/ict-engineering-portfolio.git
+  cd ict-engineering-portfolio
+  npm test
+  npm run check
+  npm start
+
+Open http://127.0.0.1:4173. The app uses Python 3.10+ and Node.js 20+ and has no install step or application dependencies. Keep the preview server on loopback; it has no authentication and is intended for a private local or SSH-tunneled demo only.
+
+WHAT IS IN THE BUILD
+This is a no-build vanilla JavaScript frontend, Python standard-library HTTP/API server, and local SQLite casebook. It contains five independent synthetic operational applications:
+1. Infrastructure Health Monitor — investigate an alert, record hypothesis/action, and verify recovery.
+2. Security Findings Dashboard — assign ownership, triage risk, plan response, and resolve with evidence.
+3. IT Helpdesk Ticket System — create and progress requests with ownership, first-response targets, notes, and resolution evidence.
+4. Network Fault Isolation Tool — run rule-based checks across impact scope and fault domains, then hand off diagnostic evidence.
+5. Maintenance Approval & Rollback — satisfy readiness and peer-review gates, confirm the window, validate implementation, and document rollback.
+
+The backend persists casebook state in SQLite, uses expected-revision checks for concurrent updates, retains up to 25 snapshots, and provides history/restore endpoints plus an integrity-checked backup utility. Existing browser-local state can be migrated on first startup. Details and limits are documented in README.md.
+
+KEY FILES
+  README.md                 Run instructions, architecture, API contract, limits
+  src/model.js              Synthetic data and domain/workflow transitions
+  src/app.js                UI rendering, interaction handlers, API synchronization
+  src/styles.css            Responsive visual system
+  scripts/serve.py          Loopback HTTP server and SQLite API
+  scripts/backup_demo_state.py  Consistent SQLite backup utility
+  tests/                    Node model tests and Python API/server tests
+  docs/case-studies.md      Scenarios, decisions, verification and lessons
+  docs/verification.md      Recorded automated and browser verification
+  docs/screenshots.md       Screenshot gallery
+
+RECORDED VERIFICATION
+The current verification record says:
+- Final-cycle `npm test`: 17 Node tests and 61 Python tests passed.
+- npm run check and Python compile checks passed.
+- Headless Chromium checks covered the six routes at desktop/tablet/mobile widths, workflow state changes across all five apps, API persistence/history/restore, and no observed browser/HTTP errors in the recorded runs.
+- Backup verification checked SQLite integrity and revision/history consistency.
+- The final cycle captured seven actual Chromium screenshots and checked all six routes at 320, 390, 768, and 1440 CSS px; it also aligned browser-side ticket validation with the API evidence and handoff rules.
+- These are local recorded checks. GitHub Actions has no recorded workflow runs, so there is no CI result to rely on.
+
+Please inspect docs/verification.md for the precise scope and caveats. Treat its statements as claims to verify against code/tests where practical.
+
+REVIEW PRIORITIES
+1. Look for security or correctness defects in request parsing, Host/origin boundaries, SQLite transactions, schema migration, snapshot validation, history retention, restore concurrency, and backup publication.
+2. Check whether frontend/API state transitions are consistent, recover gracefully from stale writes or API outage, and prevent invalid or untrusted text from being interpreted as HTML.
+3. Assess tests for meaningful coverage and identify important missing regression cases. Do not report locally recorded checks as CI checks.
+4. Check accessibility, keyboard/focus behavior, and small-screen usability against the documented claims; this is not a formal WCAG audit.
+5. Identify inaccurate or overconfident technical claims in the README, case studies, screenshots, or verification log.
+6. Separate actionable findings by severity and cite exact file paths/lines and a reproduction or reasoning for each. Explicitly say when you could not verify a claim.
+
+LIMITATIONS AND NON-GOALS
+- All alerts, findings, people, tickets, changes, and results are synthetic.
+- Network/security/health outcomes are local rule-based demonstrations; there are no live probes, vulnerability scans, production integrations, notifications, or external data connections.
+- SQLite is local to one server/operator; there is no authentication, authorization, multi-user model, cloud persistence, or immutable audit log.
+- The preview is not suitable for public exposure. No public deployment is configured.
+- The recorded browser checks are not a production acceptance review, full browser matrix, load test, or formal accessibility certification.
+- The GitHub default branch is main and shows only the initial README commit; implementation is on the private development branch. Final-cycle changes are currently local to `final-four-hour-cycle` and have not been pushed or merged.
+
+EXPECTED REVIEW OUTPUT
+Return a concise independent code review with:
+- Findings first, ordered by severity, with file/line references and practical impact.
+- Verification you actually ran, with exact commands and outcomes.
+- Any important claims you could not verify.
+- A short assessment of whether the five workflows and local backend are coherent for a synthetic engineering portfolio.
+- No repository writes, branch changes, deployment, or merge unless separately requested.

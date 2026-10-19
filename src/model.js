@@ -34,13 +34,57 @@ export const seed = {
 export const cloneSeed = () => structuredClone(seed);
 
 const isRecord = value => value !== null && typeof value === "object" && !Array.isArray(value);
-const isText = value => typeof value === "string";
+function isText(value) {
+  if (typeof value !== "string") return false;
+  for (let i = 0; i < value.length; i++) {
+    const unit = value.charCodeAt(i);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(i + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return false;
+      i++;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) return false;
+  }
+  return true;
+}
+function isPortableJSON(root) {
+  const pending = [{ value: root, leave: false }];
+  const active = new Set();
+  while (pending.length) {
+    const current = pending.pop();
+    const value = current.value;
+    if (current.leave) { active.delete(value); continue; }
+    if (value === null || typeof value === "boolean") continue;
+    if (typeof value === "string") { if (!isText(value)) return false; continue; }
+    if (typeof value === "number") {
+      if (!Number.isFinite(value) || Number.isInteger(value) && !Number.isSafeInteger(value) && !value.toString().includes("e")) return false;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      if (active.has(value)) return false;
+      active.add(value); pending.push({ value, leave: true });
+      for (const item of value) pending.push({ value: item, leave: false });
+      continue;
+    }
+    if (!isRecord(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value)) || Reflect.ownKeys(value).some(key => typeof key !== "string" || !Object.prototype.propertyIsEnumerable.call(value, key)) || active.has(value)) return false;
+    active.add(value); pending.push({ value, leave: true });
+    for (const [key, item] of Object.entries(value)) {
+      if (!isText(key)) return false;
+      pending.push({ value: item, leave: false });
+    }
+  }
+  return true;
+}
 const nodeSignalFields = {
   "core-sw-01": ["portUtilization", "interfaceErrors"],
   "app-srv-02": ["cpu", "memory", "queueDepth"],
   "db-pri-01": ["connectionUtilization", "storage"],
   "fw-edge-01": ["cpu", "sessionUtilization"],
   "ap-east-14": ["missedHeartbeats", "poeDraw"]
+};
+const healthySignalThresholds = {
+  "core-sw-01": { portUtilization: 80, interfaceErrors: 1 },
+  "app-srv-02": { cpu: 80, queueDepth: 25 },
+  "ap-east-14": { missedHeartbeats: 3 }
 };
 const nodeStatuses = ["Healthy", "Degraded", "Offline"];
 const findingStatuses = ["Open", "Investigating", "Resolved"];
@@ -53,11 +97,13 @@ function validNode(node) {
   if (!isRecord(node) || !/^[a-z0-9-]+$/.test(node.id) || !nodeSignalFields[node.id] || ![node.name, node.type, node.zone, node.icon, node.uptime].every(isText) || !nodeStatuses.includes(node.health) || !isRecord(node.signals)) return false;
   const signalFields = nodeSignalFields[node.id];
   if (!signalFields.every(key => Number.isFinite(node.signals[key]) && node.signals[key] >= 0)) return false;
+  if (node.health === "Healthy" && Object.entries(healthySignalThresholds[node.id] || {}).some(([key, threshold]) => node.signals[key] > threshold)) return false;
   if (!(node.latency === null || Number.isFinite(node.latency) && node.latency >= 0)) return false;
   if (node.investigation === undefined || node.investigation === null) return true;
   const incident = node.investigation;
   if (!isRecord(incident) || !isText(incident.owner) || !incident.owner.trim() || incident.owner === "Unassigned" || !isText(incident.cause) || !incident.cause.trim() || !isText(incident.action) || !incident.action.trim() || !["Investigating", "Resolved"].includes(incident.status)) return false;
-  return incident.status !== "Resolved" || isText(incident.verification) && recoveryChecks(node).includes(incident.verification) && isText(incident.notes) && incident.notes.trim().length >= 8;
+  if (incident.status === "Investigating") return node.health !== "Healthy";
+  return node.health === "Healthy" && isText(incident.verification) && recoveryChecks(node).includes(incident.verification) && isText(incident.notes) && incident.notes.trim().length >= 8;
 }
 
 function validFinding(finding) {
@@ -68,21 +114,33 @@ function validFinding(finding) {
 
 function validTicket(ticket) {
   if (!isRecord(ticket) || !/^HD-\d+$/.test(ticket.id) || !isText(ticket.subject) || !isText(ticket.requester) || !["Access & accounts", "Hardware", "Network", "Software", "Other"].includes(ticket.category) || !["Low", "Normal", "High"].includes(ticket.priority) || !ticketStatuses.includes(ticket.status) || !isText(ticket.assignee) || !Number.isFinite(ticket.ageMinutes) || ticket.ageMinutes < 0 || !(ticket.firstResponseMinutes === null || Number.isFinite(ticket.firstResponseMinutes) && ticket.firstResponseMinutes >= 0) || !(ticket.createdAt === undefined || isText(ticket.createdAt) && Number.isFinite(Date.parse(ticket.createdAt))) || !Array.isArray(ticket.updates) || !ticket.updates.every(isText)) return false;
-  if (ticket.status !== "New" && (!ticket.assignee.trim() || ticket.assignee === "Unassigned")) return false;
+  if (ticket.status === "New" && ticket.firstResponseMinutes !== null) return false;
+  if (ticket.status !== "New" && (!ticket.assignee.trim() || ticket.assignee === "Unassigned" || ticket.firstResponseMinutes === null || !ticket.updates.some(update => update.trim().length >= 8))) return false;
   return ticket.status !== "Resolved" || ticket.updates.some(update => update.includes("requester/service recovery confirmed"));
 }
 
 function validChange(change) {
   if (!isRecord(change) || !/^CHG-\d+$/.test(change.id) || !isText(change.title) || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status) || !isText(change.owner) || !change.owner.trim() || change.owner === "Unassigned" || !isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean") || !Array.isArray(change.history) || !change.history.every(isText)) return false;
+  const hasRecordedDecision = marker => change.history.some(entry => entry.includes(marker) && entry.split(" · ").at(-1).trim().length >= 12);
+  const hasIndependentPeerReview = change.history.some(entry => {
+    const marker = "Peer review by ";
+    const markerIndex = entry.indexOf(marker);
+    if (markerIndex === -1) return false;
+    const reviewer = entry.slice(markerIndex + marker.length).split(" · ")[0].trim();
+    return reviewer && reviewer.toLocaleLowerCase() !== change.owner.trim().toLocaleLowerCase();
+  });
   if (readyChangeStatuses.includes(change.status) && !readinessChecks.every(([key]) => change.readiness[key] === true)) return false;
-  if (readyChangeStatuses.includes(change.status) && change.risk === "High" && (change.readiness.peerReview !== true || !change.history.some(entry => entry.includes("Peer review by ")))) return false;
+  if (readyChangeStatuses.includes(change.status) && !hasRecordedDecision("Approved by ")) return false;
+  if (change.status === "Rejected" && !hasRecordedDecision("Rejected by ")) return false;
+  if (readyChangeStatuses.includes(change.status) && change.risk === "High" && (change.readiness.peerReview !== true || !hasIndependentPeerReview)) return false;
   if (change.status === "In progress" || closedChangeStatuses.includes(change.status)) {
-    if (!isText(change.preChangeEvidence) || change.preChangeEvidence.trim().length < 12) return false;
+    if (!isText(change.preChangeEvidence) || change.preChangeEvidence.trim().length < 12 || !hasRecordedDecision("Implementation started in approved window")) return false;
   }
   if (change.status === "Completed" || change.status === "Rollback required") {
-    if (!isText(change.validationEvidence) || change.validationEvidence.trim().length < 12) return false;
+    const outcome = change.status === "Completed" ? "Validation passed" : "Validation failed";
+    if (!isText(change.validationEvidence) || change.validationEvidence.trim().length < 12 || !hasRecordedDecision(outcome)) return false;
   }
-  if (change.status === "Rolled back" && (!isText(change.rollbackEvidence) || change.rollbackEvidence.trim().length < 12)) return false;
+  if (change.status === "Rolled back" && (!isText(change.rollbackEvidence) || change.rollbackEvidence.trim().length < 12 || !hasRecordedDecision("Rollback executed"))) return false;
   return true;
 }
 
@@ -109,10 +167,18 @@ export function migrateDemoState(value) {
 }
 
 export function isDemoState(value) {
-  if (!isRecord(value) || !["nodes", "findings", "tickets", "maintenance", "events"].every(key => Array.isArray(value[key]))) return false;
+  const stateKeys = ["nodes", "findings", "tickets", "maintenance", "events"];
+  if (!isRecord(value) || Object.keys(value).length !== stateKeys.length || !stateKeys.every(key => Array.isArray(value[key])) || !stateKeys.every(key => Object.hasOwn(value, key)) || !isPortableJSON(value)) return false;
+  let serialized;
+  try { serialized = JSON.stringify(value); } catch { return false; }
+  if (new TextEncoder().encode(serialized).length > 1_000_000) return false;
+  if (value.findings.length > 500 || value.tickets.length > 500 || value.maintenance.length > 300 || value.events.length > 100) return false;
   const nodeIds = new Set(value.nodes.map(node => node?.id));
   if (value.nodes.length !== Object.keys(nodeSignalFields).length || !Object.keys(nodeSignalFields).every(id => nodeIds.has(id)) || !value.events.every(isText)) return false;
   if (![value.nodes, value.findings, value.tickets, value.maintenance].every(hasUniqueIds)) return false;
+  const findingIds = new Set(value.findings.map(finding => finding?.id));
+  if (value.tickets.some(ticket => ticket?.relatedAssetId !== undefined && (!isText(ticket.relatedAssetId) || ticket.relatedAssetId && !nodeIds.has(ticket.relatedAssetId)))) return false;
+  if (value.maintenance.some(change => change?.findingId !== undefined && (!isText(change.findingId) || change.findingId && !findingIds.has(change.findingId)))) return false;
   return value.nodes.every(validNode) && value.findings.every(validFinding) && value.tickets.every(validTicket) && value.maintenance.every(validChange);
 }
 

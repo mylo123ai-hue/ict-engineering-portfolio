@@ -41,9 +41,93 @@ test("demo state validation rejects truncated or malformed saved data", () => {
   assert.equal(isDemoState({ ...saved, nodes: saved.nodes.map(node => node.id === "app-srv-02" ? { ...node, investigation: { owner: "R. Patel", cause: "CPU pressure", action: "Scale worker pool", status: "Resolved" } } : node) }), false);
   assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], status: "In progress", readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])) }] }), false);
   assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], risk: "High", status: "Approved", readiness: { ...Object.fromEntries(readinessChecks.map(([key]) => [key, true])), peerReview: true }, history: ["Approved by Jamie Diaz"] }] }), false);
-  const readyChange = { ...saved.maintenance[0], status: "Completed", readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])), preChangeEvidence: "Baseline health check passed before work.", validationEvidence: "ERP response returned below the agreed threshold." };
+  const readyChange = {
+    ...saved.maintenance[0], status: "Completed",
+    readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])),
+    preChangeEvidence: "Baseline health check passed before work.",
+    validationEvidence: "ERP response returned below the agreed threshold.",
+    history: [
+      "09:00 · Approved by Jamie Diaz · Impact and recovery checks are defined.",
+      "22:00 · Implementation started in approved window · Baseline health check passed before work.",
+      "22:20 · Validation passed · ERP response returned below the agreed threshold."
+    ]
+  };
   assert.equal(isDemoState({ ...saved, maintenance: [readyChange] }), true);
-  assert.equal(isDemoState({ ...saved, maintenance: [{ ...readyChange, status: "Rolled back", rollbackEvidence: "Restored snapshot and confirmed service recovery." }] }), true);
+  assert.equal(isDemoState({ ...saved, maintenance: [{ ...readyChange, status: "Rolled back", rollbackEvidence: "Restored snapshot and confirmed service recovery.", history: [...readyChange.history, "22:30 · Validation failed · ERP response remained above its baseline.", "22:35 · Rollback executed · Restored snapshot and confirmed service recovery."] }] }), true);
+});
+
+test("browser state validation matches API evidence gates for worked tickets", () => {
+  const missingFirstResponse = cloneSeed();
+  missingFirstResponse.tickets[0].firstResponseMinutes = null;
+  assert.equal(isDemoState(missingFirstResponse), false);
+
+  const missingWorkNote = cloneSeed();
+  missingWorkNote.tickets[0].updates = [];
+  assert.equal(isDemoState(missingWorkNote), false);
+
+  const newTicketWithResponse = cloneSeed();
+  newTicketWithResponse.tickets[1].firstResponseMinutes = 3;
+  assert.equal(isDemoState(newTicketWithResponse), false);
+
+  const brokenAssetHandoff = cloneSeed();
+  brokenAssetHandoff.tickets[0].relatedAssetId = "missing-host";
+  assert.equal(isDemoState(brokenAssetHandoff), false);
+
+  const brokenFindingHandoff = cloneSeed();
+  brokenFindingHandoff.maintenance[0].findingId = "SEC-9999";
+  assert.equal(isDemoState(brokenFindingHandoff), false);
+
+  const healthyOverThreshold = cloneSeed();
+  const erp = healthyOverThreshold.nodes.find(node => node.id === "app-srv-02");
+  erp.health = "Healthy";
+  assert.equal(isDemoState(healthyOverThreshold), false);
+
+  const unsubstantiatedApproval = cloneSeed();
+  Object.keys(unsubstantiatedApproval.maintenance[0].readiness).forEach(key => { unsubstantiatedApproval.maintenance[0].readiness[key] = true; });
+  unsubstantiatedApproval.maintenance[0].status = "Approved";
+  assert.equal(isDemoState(unsubstantiatedApproval), false);
+
+  const sameOwnerPeerReview = cloneSeed();
+  const highRiskChange = sameOwnerPeerReview.maintenance[0];
+  highRiskChange.risk = "High";
+  highRiskChange.status = "Approved";
+  Object.keys(highRiskChange.readiness).forEach(key => { highRiskChange.readiness[key] = true; });
+  highRiskChange.readiness.peerReview = true;
+  highRiskChange.history.push("09:00 · Peer review by R. Patel · Scope and rollback reviewed.");
+  highRiskChange.history.push("09:01 · Approved by Jamie Diaz · Impact and recovery checks are defined.");
+  assert.equal(isDemoState(sameOwnerPeerReview), false);
+
+  const recordedIndependentReview = cloneSeed();
+  const reviewedChange = recordedIndependentReview.maintenance[0];
+  reviewedChange.risk = "High";
+  reviewedChange.status = "Approved";
+  Object.keys(reviewedChange.readiness).forEach(key => { reviewedChange.readiness[key] = true; });
+  reviewedChange.readiness.peerReview = true;
+  reviewedChange.history.push("09:00 · Peer review by Jamie Diaz · Scope and rollback reviewed.");
+  reviewedChange.history.push("09:01 · Approved by Jamie Diaz · Impact and recovery checks are defined.");
+  assert.equal(isDemoState(recordedIndependentReview), true);
+
+  const overLimit = cloneSeed();
+  overLimit.events = Array.from({ length: 101 }, () => "Synthetic event");
+  assert.equal(isDemoState(overLimit), false);
+
+  const extraTopLevelField = cloneSeed();
+  extraTopLevelField.debug = true;
+  assert.equal(isDemoState(extraTopLevelField), false);
+
+  const unsafeExtensionInteger = cloneSeed();
+  unsafeExtensionInteger.nodes[0].extensionCounter = Number.MAX_SAFE_INTEGER + 1;
+  assert.equal(isDemoState(unsafeExtensionInteger), false);
+
+  const invalidUnicode = cloneSeed();
+  invalidUnicode.events = ["\ud800"];
+  assert.equal(isDemoState(invalidUnicode), false);
+
+  const oversizedCasebook = cloneSeed();
+  oversizedCasebook.nodes[0].extensionText = "x".repeat(1_000_000);
+  assert.equal(isDemoState(oversizedCasebook), false);
+
+  assert.equal(isDemoState(cloneSeed()), true);
 });
 
 test("demo state migration preserves a browser save with previous utilization signal names", () => {
