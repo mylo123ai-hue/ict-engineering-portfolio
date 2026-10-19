@@ -2,7 +2,7 @@
 
 **Five interactive ICT operations applications, built as a human-directed AI project.** The portfolio demonstrates practical engineering decisions across infrastructure, security, service desk, network troubleshooting, and change control.
 
-Prompt Perfect structured the original request. Designer applied the configured engineering principles and presented project options. The owner selected this portfolio; Luna 6 High implemented the original project and prior improvements. Codex Cloud is completing the final engineering refinement recorded below. The AI systems implemented the code; the owner directed the project and selected its scope.
+The starting brief was approximately: “Build me something that someone hiring an ICT engineer might find impressive.” Prompt Perfect structured it; Designer applied the configured engineering principles and presented options; the owner selected this portfolio. Luna 6 High implemented the original project and prior improvements. Codex Cloud is completing the final engineering refinement recorded below. The AI systems implemented the code; the owner directed the project and selected its scope.
 
 **Vanilla JavaScript · Python standard library · SQLite · five applications · synthetic scenarios only**
 
