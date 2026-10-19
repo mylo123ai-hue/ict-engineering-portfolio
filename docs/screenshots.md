@@ -1,6 +1,6 @@
 # Screenshot gallery
 
-These JPEGs were captured from the running application in local Chromium against a temporary SQLite database. The desktop captures are 1440 pixels wide; the mobile homepage is 390 pixels wide. All scenarios and records are synthetic. The browser was headless, and screenshots were captured directly from rendered application pages.
+These JPEGs were captured from the running application in local Chromium against a temporary SQLite database. The desktop captures are 1440 pixels wide; the mobile homepage shows a 390 × 844 viewport. All scenarios and records are synthetic. The browser was headless, and screenshots were captured directly from rendered application pages.
 
 ## Portfolio
 
