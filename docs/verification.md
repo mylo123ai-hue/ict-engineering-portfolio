@@ -10,7 +10,7 @@ The portfolio began as a static vanilla JavaScript single-page application with 
 
 - At the backend-cycle checkpoint, `npm test` passed 16 Node model tests and 61 Python standard-library API/preview tests. The current final-cycle run passes 19 Node model/accessibility tests and 69 Python tests; details are recorded below.
 - `npm run check` — syntax checks for `src/app.js` and `src/model.js` pass without extra dependencies.
-- `node --test --experimental-test-coverage` — model has 100% line coverage and 90.83% branch coverage in the current recorded run (17 tests).
+- `node --test --experimental-test-coverage` — the 19-test run reports 100% model line coverage and 91.27% branch coverage.
 - Tests cover malformed, duplicate-ID, unsupported-asset, and incomplete persisted state; canonical UTC ticket creation timestamps; non-empty ticket and change details; migration of saved database, firewall utilization signals, progressed tickets, and approved changes; SLA calculation and first-response recording on ticket ownership; server-side first-response and work-note requirements on worked tickets; assigned ticket transitions and verified resolution; security ownership and closure evidence; incident cause/action and recovery evidence; network fault domains across all 64 combinations of the four selectable sites, four symptoms, and four impact scopes; change readiness; independent peer review distinct from the owner; and the written-evidence gates for approval, rejection, implementation start, validation, and rollback.
 
 ## Browser checks
