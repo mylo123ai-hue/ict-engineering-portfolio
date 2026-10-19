@@ -113,6 +113,7 @@ The starting point was `development` at `9f632ad7469f0254ec2b622c112da2499a164ec
 - `npm run check` — `src/app.js` and `src/model.js` syntax checks passed.
 - `python3 -B -m py_compile scripts/serve.py scripts/backup_demo_state.py` — passed.
 - `git diff --check` — passed.
+- This workspace used Node.js 24.19.0 and Python 3.12.14. Node.js 20 and Python 3.10 were not installed, so the declared minimum-version pair was not exercised.
 - A maximum-size regression test saved a casebook whose compact UTF-8 snapshot is exactly 1,000,000 bytes. Its larger JSON request envelope fit the separate cap; a request beyond that cap still returns HTTP 413. State rejection remains independently enforced at the storage layer.
 - Model and API regressions reject whitespace-only ticket subject/requester and incomplete change planning fields. Ticket creation timestamps now require the exact UTC format the UI generates; week dates, ordinal dates, local timestamps, invalid calendar dates, and year zero are rejected at both validation boundaries.
 - Sequence ID regression coverage verifies that tickets and changes increment beyond JavaScript's safe integer range without producing rounded or scientific-notation IDs.
