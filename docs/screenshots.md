@@ -30,6 +30,10 @@ These JPEGs were captured from the running application in local Chromium against
 
 ![Maintenance Approval and Rollback](screenshots/maintenance-desktop.jpg)
 
+### Network fault isolation · mobile
+
+![Network isolation at a 390-pixel phone viewport](screenshots/network-mobile.jpg)
+
 ## Workflow evidence
 
 The network result shows a reproducible multi-site packet-loss diagnosis and its next discriminating test. The change-control capture shows a failed validation followed by a recorded rollback and recovery evidence.

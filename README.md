@@ -38,6 +38,10 @@ These are optimized captures from the running application in headless Chromium, 
 | --- | --- |
 | ![Maintenance Approval and Rollback](docs/screenshots/maintenance-desktop.jpg) | ![Portfolio homepage at a mobile viewport](docs/screenshots/homepage-mobile.jpg) |
 
+### Mobile application view
+
+![Network fault isolation form at a 390-pixel phone viewport](docs/screenshots/network-mobile.jpg)
+
 ### Workflow evidence
 
 | Multi-site packet-loss diagnosis | Change failure and recorded rollback |
