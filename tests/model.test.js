@@ -153,6 +153,21 @@ test("large JSON integer tokens use the browser's number and serialization bound
   assert.equal(isDemoState(state), false, "imprecise integers serialized without exponent notation are rejected");
 });
 
+test("browser state validation rejects sparse domain and evidence arrays before JSON serialization", () => {
+  for (const key of ["findings", "tickets", "maintenance", "events"]) {
+    const state = cloneSeed();
+    state[key] = new Array(1);
+    assert.ok(JSON.stringify(state).includes(`"${key}":[null]`));
+    assert.equal(isDemoState(state), false, `${key} cannot contain a hole that the API would receive as null`);
+  }
+  const sparseUpdates = cloneSeed();
+  sparseUpdates.tickets[1].updates = new Array(1);
+  assert.equal(isDemoState(sparseUpdates), false, "ticket update evidence must not contain sparse slots");
+  const sparseHistory = cloneSeed();
+  sparseHistory.maintenance[0].history = new Array(1);
+  assert.equal(isDemoState(sparseHistory), false, "change history evidence must not contain sparse slots");
+});
+
 test("demo state migration preserves a browser save with previous utilization signal names", () => {
   const saved = cloneSeed();
   const database = saved.nodes.find(node => node.id === "db-pri-01");

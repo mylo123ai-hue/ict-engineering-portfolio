@@ -185,6 +185,30 @@ class DemoStateApiTests(unittest.TestCase):
             with self.subTest(rejected_value=str(value)):
                 self.assertEqual(self.request("/api/state", "PUT", {"revision": 3, "state": state})[0], 422)
 
+    def test_null_slots_created_from_sparse_browser_domain_arrays_are_rejected(self):
+        for key in ("findings", "tickets", "maintenance", "events"):
+            state = self.valid_casebook()
+            state[key] = [None]
+            with self.subTest(collection=key):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+        ticket = {
+            "id": "HD-200", "subject": "Synthetic ticket", "requester": "Demo requester",
+            "assignee": "Unassigned", "category": "Other", "priority": "Normal",
+            "status": "New", "ageMinutes": 0, "firstResponseMinutes": None, "updates": [None],
+        }
+        readiness = {key: False for key in (
+            "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
+        )}
+        change = {
+            "id": "CHG-200", "title": "Synthetic change", "owner": "R. Patel", "risk": "Low",
+            "status": "Pending approval", "readiness": readiness, "history": [None],
+        }
+        for collection, record, field in (("tickets", ticket, "updates"), ("maintenance", change, "history")):
+            state = self.valid_casebook()
+            state[collection] = [record]
+            with self.subTest(collection=collection, field=field):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
     def test_revision_history_and_restore_are_auditable_and_compare_and_swap(self):
         original = self.valid_casebook()
         original["findings"] = [{

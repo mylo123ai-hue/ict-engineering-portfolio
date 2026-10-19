@@ -35,6 +35,12 @@ export const cloneSeed = () => structuredClone(seed);
 
 const isRecord = value => value !== null && typeof value === "object" && !Array.isArray(value);
 const isAssigned = value => Boolean(value.trim()) && value.trim() !== "Unassigned";
+function hasDenseElements(items) {
+  for (let index = 0; index < items.length; index++) {
+    if (!Object.hasOwn(items, index)) return false;
+  }
+  return true;
+}
 const isText = value => {
   if (typeof value !== "string") return false;
   for (let index = 0; index < value.length; index++) {
@@ -104,7 +110,7 @@ function validTicket(ticket) {
     && Number.isFinite(Date.parse(ticket.createdAt))
     && new Date(ticket.createdAt).toISOString() === ticket.createdAt
   );
-  if (!validCreatedAt || !Array.isArray(ticket.updates) || !ticket.updates.every(isText)) return false;
+  if (!validCreatedAt || !Array.isArray(ticket.updates) || !hasDenseElements(ticket.updates) || !ticket.updates.every(isText)) return false;
   if (ticket.status !== "New" && !isAssigned(ticket.assignee)) return false;
   if (ticket.status === "New" && ticket.firstResponseMinutes !== null) return false;
   if (ticket.status !== "New" && (ticket.firstResponseMinutes === null || !ticket.updates.some(update => update.trim().length >= 8))) return false;
@@ -130,7 +136,7 @@ function validChange(change) {
   if (!isText(change.title) || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status)) return false;
   if (!isText(change.owner) || !isAssigned(change.owner)) return false;
   if (!isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean")) return false;
-  if (!Array.isArray(change.history) || !change.history.every(isText)) return false;
+  if (!Array.isArray(change.history) || !hasDenseElements(change.history) || !change.history.every(isText)) return false;
   if (readyChangeStatuses.includes(change.status) && !readinessChecks.every(([key]) => change.readiness[key] === true)) return false;
   if (readyChangeStatuses.includes(change.status) && change.risk === "High" && (change.readiness.peerReview !== true || !hasIndependentPeerReview(change))) return false;
   if (readyChangeStatuses.includes(change.status) && !hasRecordedDecision(change, "Approved by ")) return false;
@@ -192,6 +198,7 @@ export function isDemoState(value) {
   const keys = ["nodes", "findings", "tickets", "maintenance", "events"];
   if (!isRecord(value) || Object.keys(value).length !== keys.length || !keys.every(key => Object.hasOwn(value, key) && Array.isArray(value[key])) || !isPortableJson(value)) return false;
   if (value.nodes.length > 32 || value.findings.length > 500 || value.tickets.length > 500 || value.maintenance.length > 300 || value.events.length > 100) return false;
+  if (!keys.every(key => hasDenseElements(value[key]))) return false;
   const nodeIds = new Set(value.nodes.map(node => node?.id));
   if (value.nodes.length !== Object.keys(nodeSignalFields).length || !Object.keys(nodeSignalFields).every(id => nodeIds.has(id)) || !value.events.every(isText)) return false;
   if (![value.nodes, value.findings, value.tickets, value.maintenance].every(hasUniqueIds)) return false;

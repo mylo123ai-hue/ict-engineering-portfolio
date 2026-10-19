@@ -88,7 +88,7 @@ See [case studies](docs/case-studies.md) for the decisions modeled in each lab, 
 
 The current final-cycle build passes:
 
-- `npm test`: 21 Node model tests and 64 Python API/preview tests.
+- `npm test`: 22 Node model tests and 65 Python API/preview tests.
 - `npm run check`: syntax checks for both JavaScript modules.
 - Chromium checks across five application workflows, responsive routes, mobile dialogs, contrast samples, and browser/API validation agreement. SQLite persistence, revision restore, stale-write conflict, and backup results are recorded in [verification evidence](docs/verification.md).
 
