@@ -1,6 +1,6 @@
 # Engineering case studies
 
-These are fictional scenarios built from synthetic data. The UI records simulated decisions in the browser; none describes a real incident, customer, change or production action.
+These are fictional scenarios built from synthetic data. Simulated decisions save to the local SQLite casebook when the API is available, with a browser-storage recovery copy; none describes a real incident, customer, change or production action.
 
 ## 1 · Infrastructure health — ERP latency
 
