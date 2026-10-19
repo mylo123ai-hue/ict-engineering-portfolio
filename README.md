@@ -46,7 +46,7 @@ These screenshots were captured from the running application in headless Chromiu
 
 **Mobile workflow capture · 390 px**
 
-<p align="center"><a href="docs/screenshots/final-cycle/network-isolation-mobile.jpg"><img src="docs/screenshots/final-cycle/network-isolation-mobile.jpg" alt="Mobile network fault isolation workflow with East wing packet-loss results and a helpdesk handoff" width="320"></a></p>
+<p align="center"><a href="docs/screenshots/final-cycle/network-isolation-mobile.jpg"><img src="docs/screenshots/final-cycle/network-isolation-mobile.jpg" alt="Mobile network fault isolation workflow with East wing packet-loss results and an available helpdesk handoff" width="320"></a></p>
 
 ## How the project was made
 
