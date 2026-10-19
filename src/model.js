@@ -63,8 +63,8 @@ const nodeSignalFields = {
 const nodeStatuses = ["Healthy", "Degraded", "Offline"];
 const findingStatuses = ["Open", "Investigating", "Resolved"];
 const ticketStatuses = ["New", "In progress", "Waiting", "Resolved"];
-const changeStatuses = ["Pending approval", "Rejected", "Approved", "In progress", "Completed", "Rollback required", "Rolled back"];
-const readyChangeStatuses = ["Approved", "In progress", "Completed", "Rollback required", "Rolled back"];
+const changeStatuses = ["Pending approval", "Rejected", "Approved", "In progress", "Completed", "Rollback required", "Recovery verification required", "Rolled back"];
+const readyChangeStatuses = ["Approved", "In progress", "Completed", "Rollback required", "Recovery verification required", "Rolled back"];
 const healthySignalThresholds = {
   "core-sw-01": { portUtilization: 80, interfaceErrors: 1 },
   "app-srv-02": { cpu: 80, queueDepth: 25 },
@@ -141,16 +141,17 @@ function validChange(change) {
   if (readyChangeStatuses.includes(change.status) && change.risk === "High" && (change.readiness.peerReview !== true || !hasIndependentPeerReview(change))) return false;
   if (readyChangeStatuses.includes(change.status) && !hasRecordedDecision(change, "Approved by ")) return false;
   if (change.status === "Rejected" && !hasRecordedDecision(change, "Rejected by ")) return false;
-  if (["In progress", "Completed", "Rollback required", "Rolled back"].includes(change.status)) {
+  if (["In progress", "Completed", "Rollback required", "Recovery verification required", "Rolled back"].includes(change.status)) {
     if (!isText(change.preChangeEvidence) || change.preChangeEvidence.trim().length < 12) return false;
     if (!hasRecordedDecision(change, "Implementation started in approved window")) return false;
   }
-  if (change.status === "Completed" || change.status === "Rollback required") {
+  if (["Completed", "Rollback required", "Recovery verification required", "Rolled back"].includes(change.status)) {
     if (!isText(change.validationEvidence) || change.validationEvidence.trim().length < 12) return false;
     const outcome = change.status === "Completed" ? "Validation passed" : "Validation failed";
     if (!hasRecordedDecision(change, outcome)) return false;
   }
-  if (change.status === "Rolled back" && (!isText(change.rollbackEvidence) || change.rollbackEvidence.trim().length < 12 || !hasRecordedDecision(change, "Rollback executed"))) return false;
+  if (["Recovery verification required", "Rolled back"].includes(change.status) && (!isText(change.rollbackEvidence) || change.rollbackEvidence.trim().length < 12 || !hasRecordedDecision(change, "Rollback executed"))) return false;
+  if (change.status === "Rolled back" && (!isText(change.rollbackVerificationEvidence) || change.rollbackVerificationEvidence.trim().length < 12 || !hasRecordedDecision(change, "Recovery verified"))) return false;
   return true;
 }
 
@@ -183,12 +184,21 @@ export function migrateDemoState(value) {
     const node = value.nodes.find(item => item?.id === id);
     return node?.signals && node.signals[newKey] === undefined && Number.isFinite(node.signals[oldKey]);
   });
-  if (pending.length === 0) return value;
+  const pendingRecovery = Array.isArray(value.maintenance) && value.maintenance.some(change =>
+    change?.status === "Rolled back" && !Object.hasOwn(change, "rollbackVerificationEvidence")
+  );
+  if (pending.length === 0 && !pendingRecovery) return value;
   const migrated = structuredClone(value);
   for (const [id, oldKey, newKey] of pending) {
     const node = migrated.nodes.find(item => item?.id === id);
     node.signals[newKey] = node.signals[oldKey];
     delete node.signals[oldKey];
+  }
+  for (const change of migrated.maintenance || []) {
+    if (change.status === "Rolled back" && !Object.hasOwn(change, "rollbackVerificationEvidence")) {
+      change.status = "Recovery verification required";
+      change.history.push("Legacy rollback reopened · service recovery verification required");
+    }
   }
   return migrated;
 }
@@ -364,9 +374,10 @@ export function maintenanceAction(change, action, { peerReviewer, windowOpenConf
     start: ["Approved", "In progress"],
     passed: ["In progress", "Completed"],
     failed: ["In progress", "Rollback required"],
-    rollback: ["Rollback required", "Rolled back"]
+    rollback: ["Rollback required", "Recovery verification required"],
+    verifyRecovery: ["Recovery verification required", "Rolled back"]
   };
-  if (["approve", "reject", "start", "passed", "failed", "rollback"].includes(action) && decisionEvidence.length < 12) return change;
+  if (["approve", "reject", "start", "passed", "failed", "rollback", "verifyRecovery"].includes(action) && decisionEvidence.length < 12) return change;
   if (action === "start" && windowOpenConfirmed !== true) return change;
   if (action === "approve") {
     const reviewerName = typeof peerReviewer === "string" ? peerReviewer.trim() : "";
@@ -378,5 +389,7 @@ export function maintenanceAction(change, action, { peerReviewer, windowOpenConf
   }
   const transition = transitions[action];
   if (!transition || change.status !== transition[0]) return change;
-  return { ...change, status: transition[1] };
+  const updated = { ...change, status: transition[1] };
+  if (action === "verifyRecovery") updated.rollbackVerificationEvidence = decisionEvidence;
+  return updated;
 }

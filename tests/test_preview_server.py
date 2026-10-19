@@ -16,7 +16,8 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from scripts.backup_demo_state import backup_database
 from scripts.serve import (
-    DemoStateStore, MAX_SAFE_REVISION, MAX_STATE_BYTES, PortfolioHandler, ROOT, create_server, is_allowed_path,
+    DemoStateStore, MAX_SAFE_REVISION, MAX_STATE_BYTES, PortfolioHandler, ROOT, create_server,
+    is_allowed_path, migrate_legacy_recovery_state, valid_state_shape,
 )
 
 
@@ -268,6 +269,40 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/history/999999999999999999999999999999")[0], 404)
         self.assertEqual(self.request("/api/history/0")[0], 404)
         self.assertEqual(self.request("/api/history/%D9%A1")[0], 404)
+
+    def test_legacy_rollback_restores_as_pending_recovery_verification(self):
+        state = self.valid_casebook()
+        readiness = {key: True for key in (
+            "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
+        )}
+        state["maintenance"].append({
+            "id": "CHG-650", "title": "Legacy synthetic rollback", "owner": "R. Patel",
+            "risk": "Low", "status": "Rolled back", "readiness": readiness,
+            "preChangeEvidence": "Baseline probe and service sign-in passed before the window",
+            "validationEvidence": "Service sign-in failed and queue depth remained above baseline",
+            "rollbackEvidence": "Package reverted; pre-change service state restored",
+            "history": [
+                "Approved by A. Reviewer · Owner accepted the tested rollback and impact plan",
+                "Implementation started in approved window · Baseline and service owner notification confirmed",
+                "Validation failed · Service response and resource signals were checked",
+                "Rollback executed · Prior package and pre-change service state restored",
+            ],
+        })
+        self.assertTrue(valid_state_shape(state, allow_legacy=True))
+        payload = json.dumps(state, separators=(",", ":"))
+        with sqlite3.connect(self.db_path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            DemoStateStore._store_revision(db, 1, payload)
+
+        self.assertEqual(self.request("/api/state"), (200, {"state": state, "revision": 1}))
+        status, restored = self.request("/api/restore", "POST", {"revision": 1, "sourceRevision": 1})
+        self.assertEqual(status, 200)
+        self.assertEqual(restored["revision"], 2)
+        self.assertEqual(restored["restoredFrom"], 1)
+        self.assertEqual(restored["state"]["maintenance"][0]["status"], "Recovery verification required")
+        self.assertIn("Legacy rollback reopened · service recovery verification required", restored["state"]["maintenance"][0]["history"])
+        self.assertTrue(valid_state_shape(restored["state"]))
+        self.assertEqual(self.request("/api/state")[1], {"state": restored["state"], "revision": 2})
 
     def test_history_retains_only_the_newest_25_revisions(self):
         state = self.valid_casebook()
@@ -1135,10 +1170,18 @@ class DemoStateApiTests(unittest.TestCase):
                 "Implementation started in approved window · Baseline and service owner notification confirmed",
             ),
             (
+                "Recovery verification required", ready,
+                {"preChangeEvidence": "Baseline probe and service sign-in passed before the window",
+                 "validationEvidence": "Service sign-in failed and queue depth remained above baseline",
+                 "rollbackEvidence": "Package reverted; pre-change service state restored"},
+                "Implementation started in approved window · Baseline and service owner notification confirmed",
+            ),
+            (
                 "Rolled back", ready,
                 {"preChangeEvidence": "Baseline probe and service sign-in passed before the window",
                  "validationEvidence": "Service sign-in failed and queue depth remained above baseline",
-                 "rollbackEvidence": "Package reverted; service sign-in passed and queue returned to baseline"},
+                 "rollbackEvidence": "Package reverted; pre-change service state restored",
+                 "rollbackVerificationEvidence": "Service sign-in passed and queue depth returned to baseline"},
                 "Implementation started in approved window · Baseline and service owner notification confirmed",
             ),
         )
@@ -1151,13 +1194,15 @@ class DemoStateApiTests(unittest.TestCase):
                     "risk": "Low", "status": status, "readiness": readiness, "history": [required_entry],
                     **extra_fields,
                 }
-                if status in {"In progress", "Completed", "Rollback required", "Rolled back"}:
+                if status in {"In progress", "Completed", "Rollback required", "Recovery verification required", "Rolled back"}:
                     change["history"].insert(0, "Approved by A. Reviewer · Owner accepted the tested rollback and impact plan")
-                if status in {"Completed", "Rollback required", "Rolled back"}:
+                if status in {"Completed", "Rollback required", "Recovery verification required", "Rolled back"}:
                     outcome = "Validation passed" if status == "Completed" else "Validation failed"
                     change["history"].append(f"{outcome} · Service response and resource signals were checked")
+                if status in {"Recovery verification required", "Rolled back"}:
+                    change["history"].append("Rollback executed · Prior package and pre-change service state restored")
                 if status == "Rolled back":
-                    change["history"].append("Rollback executed · Prior package restored and service recovery confirmed")
+                    change["history"].append("Recovery verified · Service sign-in passed and queue depth returned to baseline")
                 state["maintenance"].append(change)
                 self.assertEqual(self.request("/api/state", "PUT", {"revision": revision, "state": state})[0], 200)
                 revision += 1
@@ -1165,6 +1210,29 @@ class DemoStateApiTests(unittest.TestCase):
                 state["maintenance"][0]["history"] = []
                 self.assertEqual(self.request("/api/state", "PUT", {"revision": revision, "state": state})[0], 422)
                 self.assertEqual(self.request("/api/state")[1]["revision"], revision)
+
+        legacy = self.valid_casebook()
+        legacy["maintenance"].append({
+            "id": "CHG-499", "title": "Legacy rollback needs verification", "owner": "R. Patel",
+            "risk": "Low", "status": "Rolled back", "readiness": ready,
+            "preChangeEvidence": "Baseline probe and service sign-in passed before the window",
+            "validationEvidence": "Service sign-in failed and queue depth remained above baseline",
+            "rollbackEvidence": "Package reverted; pre-change service state restored",
+            "history": [
+                "Approved by A. Reviewer · Owner accepted the tested rollback and impact plan",
+                "Implementation started in approved window · Baseline and service owner notification confirmed",
+                "Validation failed · Service response and resource signals were checked",
+                "Rollback executed · Prior package and pre-change service state restored",
+            ],
+        })
+        self.assertFalse(valid_state_shape(legacy), "new writes must verify post-rollback service health")
+        self.assertTrue(valid_state_shape(legacy, allow_legacy=True), "stored history remains readable during migration")
+        migrated = migrate_legacy_recovery_state(legacy)
+        self.assertEqual(migrated["maintenance"][0]["status"], "Recovery verification required")
+        self.assertTrue(valid_state_shape(migrated))
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": revision, "state": legacy})[0], 422)
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": revision, "state": migrated})[0], 200)
+        revision += 1
 
         state = self.valid_casebook()
         state["maintenance"].append({

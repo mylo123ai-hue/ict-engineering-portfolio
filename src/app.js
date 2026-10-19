@@ -350,7 +350,7 @@ function renderMaintenance() {
   return `${title("Maintenance & rollback", "Assess readiness before approval, then record implementation and validation outcomes.", `<button class="button button-primary" data-action="new-change">＋ &nbsp;New change request</button>`)}
   ${engineeringBrief("maintenance")}
   <div class="change-banner"><div class="change-banner-icon">◷</div><div><strong>Approval is a risk decision.</strong><p>Every change needs an owner, agreed window, impact check, rollback path, and post-change validation plan.</p></div><span>SYNTHETIC CHANGE CONTROL</span></div>
-  <div class="change-stats"><div><span>Pending review</span><strong>${state.maintenance.filter(m => m.status === "Pending approval").length}</strong><i class="stat-pending"></i></div><div><span>Approved / in progress</span><strong>${state.maintenance.filter(m => ["Approved", "In progress"].includes(m.status)).length}</strong><i class="stat-approved"></i></div><div><span>Completed / rollback</span><strong>${state.maintenance.filter(m => ["Completed", "Rolled back"].includes(m.status)).length}</strong><i class="stat-complete"></i></div></div>
+  <div class="change-stats"><div><span>Pending review</span><strong>${state.maintenance.filter(m => m.status === "Pending approval").length}</strong><i class="stat-pending"></i></div><div><span>Approved / in progress</span><strong>${state.maintenance.filter(m => ["Approved", "In progress"].includes(m.status)).length}</strong><i class="stat-approved"></i></div><div><span>Completed / recovery</span><strong>${state.maintenance.filter(m => ["Completed", "Recovery verification required", "Rolled back"].includes(m.status)).length}</strong><i class="stat-complete"></i></div></div>
   <div class="change-columns"><div>${card(`<div class="table-header"><div><h3>Change requests <span class="count-pill">${state.maintenance.length}</span></h3><p>Readiness is persisted per request and gates approval</p></div><button class="button button-quiet button-small" data-action="maintenance-refresh">↻ Refresh</button></div><div class="change-list">${state.maintenance.map(change => {
     const checks = readinessChecks.map(([key, label]) => `<label class="readiness-check"><input type="checkbox" data-action="change-check" data-id="${change.id}" data-key="${key}" ${change.readiness?.[key] ? "checked" : ""} ${change.status !== "Pending approval" ? "disabled" : ""}><span>${esc(label)}</span></label>`).join("");
     const peerReview = change.risk === "High" ? `<label class="readiness-check risk-check"><input type="checkbox" data-action="change-check" data-id="${change.id}" data-key="peerReview" ${change.readiness?.peerReview ? "checked" : ""} ${change.status !== "Pending approval" ? "disabled" : ""}><span>Independent peer review recorded (high-risk gate)</span></label>` : "";
@@ -359,7 +359,8 @@ function renderMaintenance() {
     else if (change.status === "Approved") actions = button("Begin implementation", "change-start", "button button-primary button-small", `data-id="${change.id}" aria-label="Begin implementation for ${esc(change.id)}"`);
     else if (change.status === "In progress") actions = button("Record validation outcome", "change-validation", "button button-secondary button-small", `data-id="${change.id}" aria-label="Record validation outcome for ${esc(change.id)}"`);
     else if (change.status === "Rollback required") actions = button("Execute documented rollback", "change-rollback", "button button-danger button-small", `data-id="${change.id}" aria-label="Execute documented rollback for ${esc(change.id)}"`);
-    else actions = `<span class="muted small">${change.status === "Rolled back" ? "Rollback recorded · service checks required" : change.status === "Completed" ? "Validation passed · change closed" : "Request closed"}</span>`;
+    else if (change.status === "Recovery verification required") actions = button("Record service recovery check", "change-recovery-check", "button button-secondary button-small", `data-id="${change.id}" aria-label="Record service recovery check for ${esc(change.id)}"`);
+    else actions = `<span class="muted small">${change.status === "Rolled back" ? "Rollback verified · change closed" : change.status === "Completed" ? "Validation passed · change closed" : "Request closed"}</span>`;
     const readiness = change.status === "Pending approval" ? `<div class="readiness-panel"><div class="readiness-heading"><strong>Approval readiness</strong><span>${readinessChecks.filter(([key]) => change.readiness?.[key]).length}/${readinessChecks.length} complete${change.risk === "High" ? ` · ${change.readiness?.peerReview ? "peer review set" : "peer review required"}` : ""}</span></div>${checks}${peerReview}</div>` : "";
     return `<article class="change-item"><div class="change-item-top"><span class="change-id">${esc(change.id)} · ${esc(change.owner)}</span><span class="status-pill ${statusClass(change.status)}"><i></i>${esc(change.status)}</span></div><h3>${esc(change.title)}</h3><div class="change-meta"><span>▣ ${esc(change.system)}</span><span>◷ ${esc(change.window)}</span><span>Risk · <b class="risk-${statusClass(change.risk)}">${esc(change.risk)}</b></span></div>${change.findingId ? `<div class="change-impact"><b>Linked finding</b><a href="#security">${esc(change.findingId)} · View finding →</a></div>` : ""}${change.impact ? `<div class="change-impact"><b>Impact assessment</b>${esc(change.impact)}</div>` : ""}${change.validationPlan ? `<div class="change-impact"><b>Post-change validation</b>${esc(change.validationPlan)}</div>` : ""}<div class="rollback-box"><span aria-hidden="true">↶</span><div><strong>Rollback plan</strong><p>${esc(change.rollback)}</p></div></div>${readiness}<div class="change-actions">${actions}</div>${change.history?.length ? `<div class="change-history"><b>Decision log</b>${change.history.map(entry => `<span>${esc(entry)}</span>`).join("")}</div>` : ""}</article>`;
   }).join("") || `<div class="empty-state"><span>◷</span><strong>No change requests yet</strong><p>Create a request to start a review workflow.</p></div>`}</div>`)}
@@ -556,15 +557,27 @@ function openChangeStart(change) {
   } });
 }
 function openRollback(change) {
-  openDialog({ eyebrow: `RECOVERY · ${change.id}`, heading: "Execute documented rollback", description: `Rollback plan: ${change.rollback}. Record the recovery action and service check.`, submit: "Record rollback", content: `<label>Rollback evidence<textarea name="note" rows="3" required minlength="12" placeholder="What was reverted and which service check passed?">${esc(change.rollback)}</textarea></label>`, onSubmit: form => {
+  openDialog({ eyebrow: `RECOVERY · ${change.id}`, heading: "Execute documented rollback", description: `Rollback plan: ${change.rollback}. Record the action taken; verify service recovery in the next step.`, submit: "Record rollback action", content: `<label>Rollback action evidence<textarea name="note" rows="3" required minlength="12" placeholder="What was reverted, and what recovery step was completed?">${esc(change.rollback)}</textarea></label>`, onSubmit: form => {
     const index = state.maintenance.findIndex(item => item.id === change.id);
     const updated = maintenanceAction(change, "rollback", { evidence: form.note });
     if (updated === change) return false;
     updated.history = [...(change.history || []), `${nowLabel()} · Rollback executed · ${form.note.trim()}`];
     updated.rollbackEvidence = form.note.trim();
     state.maintenance[index] = updated;
-    addEvent(`${change.id} rollback recorded · recovery check documented`);
-    save(); render(); toast("Rollback decision and recovery evidence recorded.");
+    addEvent(`${change.id} rollback executed · service recovery check required`);
+    save(); render(); toast("Rollback action recorded. Verify service recovery before closing the change.");
+  } });
+}
+function openRecoveryCheck(change) {
+  openDialog({ eyebrow: `SERVICE RECOVERY · ${change.id}`, heading: "Verify service after rollback", description: `${change.system}. Compare the affected service and key signals with the pre-change baseline before closing the change.`, submit: "Confirm service recovery", content: `<label>Service recovery evidence<textarea name="note" rows="3" required minlength="12" placeholder="Which service check passed, and how did it compare with baseline?"></textarea></label><label class="confirm-check"><input type="checkbox" name="recoveryVerified" value="yes" required><span>The service check passed against the expected baseline.</span></label>`, onSubmit: form => {
+    const index = state.maintenance.findIndex(item => item.id === change.id);
+    const updated = maintenanceAction(change, "verifyRecovery", { evidence: form.note });
+    if (updated === change || form.recoveryVerified !== "yes") return false;
+    updated.rollbackVerificationEvidence = form.note.trim();
+    updated.history = [...(change.history || []), `${nowLabel()} · Recovery verified · ${form.note.trim()}`];
+    state.maintenance[index] = updated;
+    addEvent(`${change.id} service recovery verified after rollback`);
+    save(); render(); toast("Service recovery verified; the change is closed.");
   } });
 }
 function showChangeForm(prefill = {}) {
@@ -644,6 +657,8 @@ function bindPageEvents() {
       const change = state.maintenance.find(item => item.id === id); if (change) openValidationDecision(change);
     } else if (action === "change-rollback") {
       const change = state.maintenance.find(item => item.id === id); if (change) openRollback(change);
+    } else if (action === "change-recovery-check") {
+      const change = state.maintenance.find(item => item.id === id); if (change) openRecoveryCheck(change);
     }
   };
   app.onchange = event => {

@@ -968,11 +968,11 @@ tbody tr:last-child td {
 .status-pill.healthy i,.status-pill.resolved i,.status-pill.approved i,.status-pill.completed i {
   background:#38b594
 }
-.status-pill.degraded,.status-pill.investigating,.status-pill.pending-approval,.status-pill.waiting {
+.status-pill.degraded,.status-pill.investigating,.status-pill.pending-approval,.status-pill.waiting,.status-pill.recovery-verification-required {
   background:#fff7e9;
   color:#be8935
 }
-.status-pill.degraded i,.status-pill.investigating i,.status-pill.pending-approval i,.status-pill.waiting i {
+.status-pill.degraded i,.status-pill.investigating i,.status-pill.pending-approval i,.status-pill.waiting i,.status-pill.recovery-verification-required i {
   background:#e5a43f
 }
 .status-pill.offline,.status-pill.rejected,.status-pill.rolled-back {
@@ -2202,7 +2202,7 @@ tbody tr:last-child td {
     display:none
   }
   .top-actions {
-    gap:4px
+    gap:2px
   }
   .top-actions #downloadConflict,
   .top-actions #retrySync,
@@ -3375,7 +3375,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 .status-pill.healthy,.status-pill.resolved,.status-pill.approved,.status-pill.completed {
   color:#276c59
 }
-.status-pill.degraded,.status-pill.investigating,.status-pill.pending-approval,.status-pill.waiting {
+.status-pill.degraded,.status-pill.investigating,.status-pill.pending-approval,.status-pill.waiting,.status-pill.recovery-verification-required {
   color:#80520d
 }
 .status-pill.offline,.status-pill.rejected,.status-pill.rolled-back {

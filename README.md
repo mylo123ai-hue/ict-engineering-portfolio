@@ -48,6 +48,8 @@ These are optimized captures from the running application in headless Chromium, 
 | --- | --- |
 | [![Synthetic network fault isolation result](docs/screenshots/network-isolation-result.jpg)](docs/screenshots/network-isolation-result.jpg) | [![Synthetic maintenance rollback workflow](docs/screenshots/maintenance-rollback.jpg)](docs/screenshots/maintenance-rollback.jpg) |
 
+The network result compares client, gateway, and upstream loss, then proposes a test at the fault boundary. The change record keeps rollback execution open until a separate service check passes against the pre-change baseline.
+
 All names, requests, hosts, alerts, findings, metrics, timestamps, and outcomes shown in these images are fictional.
 
 ## Engineering approach
@@ -88,9 +90,9 @@ See [case studies](docs/case-studies.md) for the decisions modeled in each lab, 
 
 The current final-cycle build passes:
 
-- `npm test`: 22 Node model and accessibility tests, plus 65 Python API/preview tests.
+- `npm test`: 22 Node model and accessibility tests, plus 66 Python API/preview tests.
 - `npm run check`: syntax checks for both JavaScript modules.
-- `node --test --experimental-test-coverage`: 100% model line coverage and 89.33% branch coverage.
+- `node --test --experimental-test-coverage`: 100% model line coverage and 89.41% branch coverage.
 - Chromium checks across five application workflows, responsive routes, mobile dialogs, contrast samples, and browser/API validation agreement. SQLite persistence, revision restore, stale-write conflict, and backup results are recorded in [verification evidence](docs/verification.md).
 
 The test suite uses built-in Node.js and Python libraries. Browser automation used the environment-provided Playwright and Chromium; neither was added as an application dependency.

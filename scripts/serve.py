@@ -162,7 +162,7 @@ def validate_history_row(row):
     if len(payload.encode("utf-8")) > MAX_STATE_BYTES:
         raise ValueError("Stored history payload exceeds the state size limit")
     state = parse_json(payload)
-    if not valid_state_shape(state):
+    if not valid_state_shape(state, allow_legacy=True):
         raise ValueError("Stored revision failed validation")
     return {"state": state, "revision": revision}
 
@@ -297,12 +297,12 @@ def valid_ticket(ticket):
     return ticket["status"] != "Resolved" or any("requester/service recovery confirmed" in update for update in ticket["updates"])
 
 
-def valid_change(change):
+def valid_change(change, allow_legacy=False):
     if not is_record(change) or not isinstance(change.get("id"), str) or not re.fullmatch(r"CHG-[0-9]+", change["id"]):
         return False
     if not all(is_text(change.get(key)) for key in ("title", "owner")) or not is_assigned(change["owner"]):
         return False
-    statuses = {"Pending approval", "Rejected", "Approved", "In progress", "Completed", "Rollback required", "Rolled back"}
+    statuses = {"Pending approval", "Rejected", "Approved", "In progress", "Completed", "Rollback required", "Recovery verification required", "Rolled back"}
     if not is_one_of(change.get("risk"), {"Low", "Medium", "High"}) or not is_one_of(change.get("status"), statuses):
         return False
     readiness = change.get("readiness")
@@ -326,7 +326,7 @@ def valid_change(change):
                 return True
         return False
 
-    ready_statuses = {"Approved", "In progress", "Completed", "Rollback required", "Rolled back"}
+    ready_statuses = {"Approved", "In progress", "Completed", "Rollback required", "Recovery verification required", "Rolled back"}
     if change["status"] in ready_statuses and not all(readiness[key] for key in READINESS_KEYS):
         return False
     if change["status"] in ready_statuses and change["risk"] == "High" and (readiness.get("peerReview") is not True or not has_independent_peer_review()):
@@ -335,24 +335,30 @@ def valid_change(change):
         return False
     if change["status"] == "Rejected" and not has_recorded_decision("Rejected by "):
         return False
-    if change["status"] in {"In progress", "Completed", "Rollback required", "Rolled back"}:
+    if change["status"] in {"In progress", "Completed", "Rollback required", "Recovery verification required", "Rolled back"}:
         evidence = change.get("preChangeEvidence")
         if not is_text(evidence) or len(js_trim(evidence)) < 12:
             return False
         if not has_recorded_decision("Implementation started in approved window"):
             return False
-    if change["status"] in {"Completed", "Rollback required"}:
+    if change["status"] in {"Completed", "Rollback required", "Recovery verification required", "Rolled back"}:
         evidence = change.get("validationEvidence")
         if not is_text(evidence) or len(js_trim(evidence)) < 12:
             return False
         outcome = "Validation passed" if change["status"] == "Completed" else "Validation failed"
         if not has_recorded_decision(outcome):
             return False
-    if change["status"] == "Rolled back":
+    if change["status"] in {"Recovery verification required", "Rolled back"}:
         evidence = change.get("rollbackEvidence")
         if not is_text(evidence) or len(js_trim(evidence)) < 12:
             return False
         if not has_recorded_decision("Rollback executed"):
+            return False
+    if change["status"] == "Rolled back" and not (allow_legacy and "rollbackVerificationEvidence" not in change):
+        evidence = change.get("rollbackVerificationEvidence")
+        if not is_text(evidence) or len(js_trim(evidence)) < 12:
+            return False
+        if not has_recorded_decision("Recovery verified"):
             return False
     return True
 
@@ -368,7 +374,7 @@ def is_allowed_path(path):
     return not relative.parts or relative.parts[0] in ALLOWED_ROOTS
 
 
-def valid_state_shape(state):
+def valid_state_shape(state, allow_legacy=False):
     """Enforce core casebook domain invariants server-side."""
     if not isinstance(state, dict) or set(state) != {"nodes", "findings", "tickets", "maintenance", "events"}:
         return False
@@ -377,7 +383,8 @@ def valid_state_shape(state):
         return False
     if not all(is_text(event) for event in state["events"]):
         return False
-    validators = {"nodes": valid_node, "findings": valid_finding, "tickets": valid_ticket, "maintenance": valid_change}
+    validators = {"nodes": valid_node, "findings": valid_finding, "tickets": valid_ticket,
+                  "maintenance": lambda change: valid_change(change, allow_legacy=allow_legacy)}
     if len(state["nodes"]) != len(NODE_SIGNALS):
         return False
     for key, validate in validators.items():
@@ -411,6 +418,18 @@ def valid_state_shape(state):
     except (TypeError, ValueError, UnicodeEncodeError, RecursionError, OverflowError):
         return False
     return True
+
+
+def migrate_legacy_recovery_state(state):
+    """Reopen pre-verification rollback records without repeating the rollback."""
+    migrated = json.loads(json.dumps(state, separators=(",", ":"), ensure_ascii=False))
+    for change in migrated.get("maintenance", []):
+        if change.get("status") == "Rolled back" and "rollbackVerificationEvidence" not in change:
+            change["status"] = "Recovery verification required"
+            change.setdefault("history", []).append(
+                "Legacy rollback reopened · service recovery verification required"
+            )
+    return migrated
 
 
 class DemoStateStore:
@@ -585,10 +604,11 @@ class DemoStateStore:
                     db.rollback()
                     return None, None, "missing"
                 source = history_snapshots[source_index]
+                restored_state = migrate_legacy_recovery_state(source["state"])
                 revision = current_revision + 1
-                payload = json.dumps(source["state"], separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+                payload = json.dumps(restored_state, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
                 self._store_revision(db, revision, payload, restored_from=source_revision)
-        return revision, source["state"], None
+        return revision, restored_state, None
 
 
 class PortfolioHandler(SimpleHTTPRequestHandler):

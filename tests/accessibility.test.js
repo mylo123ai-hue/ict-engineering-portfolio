@@ -55,6 +55,7 @@ test("operational labels retain readable color contrast", () => {
     [".main-area .check-warning", surface],
     [".main-area .check-fail", surface],
     [".main-area .check-blocked", surface],
+    [".status-pill.recovery-verification-required", "#fff7e9"],
     [".text-action", surface],
     [".dialog-root .dialog-hint", "#f7f8fb"],
     [".main-area .sla-pill", declarationsFor(".sla-pill").get("background")],

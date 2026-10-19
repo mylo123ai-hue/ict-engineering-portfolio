@@ -45,7 +45,20 @@ test("demo state validation rejects truncated or malformed saved data", () => {
   assert.equal(isDemoState({ ...saved, maintenance: [{ ...saved.maintenance[0], risk: "High", status: "Approved", readiness: { ...Object.fromEntries(readinessChecks.map(([key]) => [key, true])), peerReview: true }, history: ["Approved by Jamie Diaz"] }] }), false);
   const readyChange = { ...saved.maintenance[0], status: "Completed", readiness: Object.fromEntries(readinessChecks.map(([key]) => [key, true])), preChangeEvidence: "Baseline health check passed before work.", validationEvidence: "ERP response returned below the agreed threshold.", history: ["Approved by Jamie Diaz · Readiness and controls reviewed in the window.", "Implementation started in approved window · Baseline health check passed before work.", "Validation passed · ERP response returned below the agreed threshold."] };
   assert.equal(isDemoState({ ...saved, maintenance: [readyChange] }), true);
-  assert.equal(isDemoState({ ...saved, maintenance: [{ ...readyChange, status: "Rolled back", rollbackEvidence: "Restored snapshot and confirmed service recovery.", history: [...readyChange.history, "Rollback executed · Snapshot restored and service recovery confirmed."] }] }), true);
+  const legacyRollback = { ...readyChange, status: "Rolled back", validationEvidence: "ERP response exceeded the approved threshold.", rollbackEvidence: "Snapshot restored; recovery checks were not recorded.", history: [
+    "Approved by Jamie Diaz · Readiness and controls reviewed in the window.",
+    "Implementation started in approved window · Baseline health check passed before work.",
+    "Validation failed · ERP response exceeded the approved threshold.",
+    "Rollback executed · Snapshot restored; recovery checks were not recorded."
+  ] };
+  assert.equal(isDemoState({ ...saved, maintenance: [legacyRollback] }), false, "rollback execution alone must not close the change");
+  const migrated = migrateDemoState({ ...saved, maintenance: [legacyRollback] });
+  assert.equal(migrated.maintenance[0].status, "Recovery verification required");
+  assert.ok(migrated.maintenance[0].history.some(entry => entry.includes("Legacy rollback reopened")));
+  assert.equal(isDemoState(migrated), true, "legacy rollback history stays available for a service check");
+  const recoveredEvidence = "ERP sign-in passed and queue depth returned to the pre-change baseline.";
+  const completedRollback = { ...migrated.maintenance[0], status: "Rolled back", rollbackVerificationEvidence: recoveredEvidence, history: [...migrated.maintenance[0].history, `Recovery verified · ${recoveredEvidence}`] };
+  assert.equal(isDemoState({ ...migrated, maintenance: [completedRollback] }), true);
 });
 
 test("browser state validation rejects snapshots that violate server-side gates", () => {
@@ -378,7 +391,13 @@ test("change readiness, window confirmation, and decision evidence gate every tr
   assert.equal(rollbackRequired.status, "Rollback required");
   const rollbackEvidence = "Snapshot restored and ERP sign-in returned to the baseline.";
   assert.equal(maintenanceAction(rollbackRequired, "rollback"), rollbackRequired, "rollback needs a recovery record");
-  assert.equal(maintenanceAction(rollbackRequired, "rollback", { evidence: rollbackEvidence }).status, "Rolled back");
+  const recoveryPending = maintenanceAction(rollbackRequired, "rollback", { evidence: rollbackEvidence });
+  assert.equal(recoveryPending.status, "Recovery verification required");
+  assert.equal(maintenanceAction(recoveryPending, "verifyRecovery"), recoveryPending, "service recovery requires written evidence");
+  const recoveryEvidence = "ERP sign-in passed and queue depth returned to the pre-change baseline.";
+  const rolledBack = maintenanceAction(recoveryPending, "verifyRecovery", { evidence: recoveryEvidence });
+  assert.equal(rolledBack.status, "Rolled back");
+  assert.equal(rolledBack.rollbackVerificationEvidence, recoveryEvidence);
   assert.equal(maintenanceAction(started, "passed", { evidence: "ERP response and sign-in checks passed against the baseline." }).status, "Completed");
   assert.equal(maintenanceAction(change, "reject"), change, "rejection needs a recorded reason");
   assert.equal(maintenanceAction(change, "reject", { evidence: "Validation plan is missing for this window." }).status, "Rejected");

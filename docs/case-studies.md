@@ -56,9 +56,9 @@ These are fictional scenarios built from synthetic data. The UI records simulate
 
 **Investigation.** Review ownership, window, impact, rollback and validation readiness. The approval gate requires all five readiness checks. High-risk changes also require an independent peer review.
 
-**Decision and trade-off.** The operator must complete missing validation planning before approval. Starting implementation also requires confirmation that the approved window is open and a pre-change checkpoint; the confirmation is written to the decision log. A failed validation routes the change to rollback-required; recorded recovery evidence then closes the path as rolled back.
+**Decision and trade-off.** The operator must complete missing validation planning before approval. Starting implementation also requires confirmation that the approved window is open and a pre-change checkpoint; the confirmation is written to the decision log. A failed validation routes the change to rollback-required. Executing rollback opens a separate recovery-verification step; the request remains open until the operator records a passed service check against the pre-change baseline. Older rollback records are reopened for verification rather than treated as confirmed recovery.
 
-**Verification.** Tests cover readiness gates, independent peer review and pass/rollback transitions, including a start attempt without window confirmation. Browser verification exercised the disabled approval gate, readiness completion, window confirmation, pre-change evidence, failed validation and rollback.
+**Verification.** Tests cover readiness gates, independent peer review and pass/rollback transitions, including a start attempt without window confirmation and the separate service-recovery gate after rollback. Browser verification exercised the disabled approval gate, readiness completion, window confirmation, pre-change evidence, failed validation, rollback, recovery verification and final closure.
 
 **Lesson demonstrated.** Change approval is an explicit risk decision, and a rehearsable recovery path is part of the change rather than an afterthought.
 
