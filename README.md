@@ -82,11 +82,11 @@ See [case studies](docs/case-studies.md) for the decisions modeled in each lab, 
 
 ## Verification evidence
 
-At the start of the final refinement cycle, the repository passed:
+The current final-cycle build passes:
 
-- `npm test`: 16 Node model tests and 61 Python API/preview tests.
+- `npm test`: 20 Node model tests and 63 Python API/preview tests.
 - `npm run check`: syntax checks for both JavaScript modules.
-- Local Chromium workflows across the five applications and responsive route checks. The final-cycle checks, SQLite persistence, revision restore, stale-write conflict, and backup results are recorded in [verification evidence](docs/verification.md).
+- Chromium checks across five application workflows, responsive routes, mobile dialogs, contrast samples, and browser/API validation agreement. SQLite persistence, revision restore, stale-write conflict, and backup results are recorded in [verification evidence](docs/verification.md).
 
 The test suite uses built-in Node.js and Python libraries. Browser automation used the environment-provided Playwright and Chromium; neither was added as an application dependency.
 
@@ -98,9 +98,9 @@ The test suite uses built-in Node.js and Python libraries. Browser automation us
 | Original implementation | Separate from the improvement budget | Luna 6 High implemented the original project. |
 | Frontend refinement | 3 hours | First completed improvement cycle, directed by the owner. |
 | Backend engineering | 3 hours | Second completed improvement cycle, directed by the owner. |
-| Final engineering refinement | Up to 4 hours | Codex Cloud work on branch `final-cycle/codex-engineering-polish`; actual elapsed time and completed changes are in the verification record. |
+| Final engineering refinement | In progress · up to 4 hours | Codex Cloud work on branch `final-cycle/codex-engineering-polish`; elapsed time and completed changes are tracked in the verification record. |
 
-The improvement budget is six completed hours plus the measured final-cycle time. The original build is separate. Ten hours is the planned ceiling if the final cycle reaches four hours; no time is rounded up.
+The improvement budget is six completed hours plus the measured final-cycle time. The original build is separate. The four-hour final-cycle ceiling is not rounded up.
 
 ## Limits
 
