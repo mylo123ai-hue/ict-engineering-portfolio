@@ -6,6 +6,8 @@ The applications run on synthetic scenarios. Their workflows write to a local Py
 
 **Human-directed, AI-implemented:** the owner selected the project and set its engineering principles. Luna 6 High implemented the original build; Codex Cloud completed the improvement cycles described below.
 
+[Screenshots](docs/screenshots.md) · [Engineering case studies](docs/case-studies.md) · [Verification evidence](docs/verification.md) · [Run locally](#run-the-demo-locally)
+
 <p align="center"><a href="docs/screenshots/final-cycle/homepage-desktop.jpg"><img src="docs/screenshots/final-cycle/homepage-desktop.jpg" alt="Northstar ICT Engineering Portfolio homepage showing five operational applications and a SQLite-backed synthetic casebook" width="100%"></a></p>
 
 <p align="center"><strong>Current application · desktop · synthetic casebook saved to local SQLite</strong></p>
