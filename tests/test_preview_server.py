@@ -1054,7 +1054,7 @@ class DemoStateApiTests(unittest.TestCase):
             "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
         )}
         scenarios = (
-            ("Approved", ready, {}, "Approved by A. Reviewer · Owner accepted the tested rollback and impact plan"),
+            ("Approved", ready, {}, "Approved by A. Reviewer · Service owner confirmed · rollback plan and impact reviewed for this window"),
             ("Rejected", {**ready, "scopeOwner": False}, {}, "Rejected by A. Reviewer · Validation evidence was incomplete for this service"),
             (
                 "In progress", ready, {"preChangeEvidence": "Baseline probe and service sign-in passed before the window"},

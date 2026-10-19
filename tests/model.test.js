@@ -351,6 +351,7 @@ test("change readiness, window confirmation, and decision evidence gate every tr
   assert.equal(maintenanceAction(flagWithoutPlan, "approve", { evidence: "Impact, controls, owner, and rollback are suitable for this window." }), flagWithoutPlan, "validation readiness needs a recorded plan");
   const ready = { ...change, validationPlan: "Confirm ERP sign-in and compare response time with the approved baseline.", readiness: { ...change.readiness, validationReady: true } };
   const approvalEvidence = "Impact, controls, owner, and rollback are suitable for this window.";
+  assert.equal(maintenanceAction(ready, "approve", { evidence: "Impact scope · service owner · rollback evidence reviewed for approval." }).status, "Approved", "decision evidence may contain the history separator");
   assert.equal(maintenanceAction(ready, "approve"), ready, "approval needs a recorded rationale");
   const shortUnicodeEvidence = { ...ready, validationPlan: "😀".repeat(6) };
   assert.equal(maintenanceAction(shortUnicodeEvidence, "approve", { evidence: approvalEvidence }), shortUnicodeEvidence, "Unicode evidence minimum matches Python code-point validation");

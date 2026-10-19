@@ -212,9 +212,24 @@ function downloadConflictBackup() {
 }
 function retryBackendSync() {
   if (!persistenceConflict) return;
-  state = localConflictBackup || state;
-  backendReady = true;
-  queueBackendSave();
+  const snapshot = structuredClone(localConflictBackup || state);
+  fetch("/api/state", { cache: "no-store" }).then(async response => {
+    if (!response.ok) throw new Error("The shared casebook is unavailable");
+    const remote = await response.json();
+    if (!Number.isInteger(remote.revision) || remote.revision < 0 || (remote.state !== null && !isDemoState(migrateDemoState(remote.state)))) {
+      throw new Error("The shared casebook failed validation");
+    }
+    if (remote.revision !== backendRevision && !window.confirm(
+      `The shared casebook has advanced from revision ${backendRevision} to ${remote.revision}. Saving your browser backup will replace its current view. The current server revision will remain in SQLite history. Continue?`
+    )) return;
+    state = snapshot;
+    backendRevision = remote.revision;
+    try { localStorage.setItem(revisionStorageKey, String(backendRevision)); } catch { storageUnavailable = true; }
+    backendReady = true;
+    queueBackendSave();
+  }).catch(() => {
+    toast("Could not check the shared casebook; your browser backup is still saved here.");
+  });
 }
 async function useServerCopy() {
   if (!window.confirm("Discard this browser's unsynced casebook and reload the current server copy? Download a backup first if you need these changes.")) return;

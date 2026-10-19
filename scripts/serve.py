@@ -298,10 +298,14 @@ def valid_change(change):
     if not isinstance(history, list) or not all(is_text(entry) for entry in history):
         return False
     def has_recorded_decision(marker):
-        return any(
-            marker in entry and len(entry.rsplit(" · ", 1)[-1].strip()) >= 12
-            for entry in history
-        )
+        for entry in history:
+            marker_index = entry.find(marker)
+            if marker_index == -1:
+                continue
+            evidence_start = entry.find(" · ", marker_index + len(marker))
+            if evidence_start != -1 and len(entry[evidence_start + 3:].strip()) >= 12:
+                return True
+        return False
 
     def has_independent_peer_review():
         for entry in history:

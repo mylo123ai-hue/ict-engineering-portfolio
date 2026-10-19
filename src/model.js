@@ -129,7 +129,12 @@ function validTicket(ticket) {
 function validChange(change) {
   if (!isRecord(change) || !/^CHG-\d+$/.test(change.id) || !isText(change.title) || !change.title.trim() || !isText(change.system) || !change.system.trim() || !isText(change.window) || !change.window.trim() || !isText(change.impact) || textLength(change.impact.trim()) < 12 || !isText(change.rollback) || textLength(change.rollback.trim()) < 12 || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status) || !isText(change.owner) || !change.owner.trim() || change.owner === "Unassigned" || !isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean") || !Array.isArray(change.history) || !change.history.every(isText)) return false;
   if (change.readiness.validationReady && (!isText(change.validationPlan) || textLength(change.validationPlan.trim()) < 12)) return false;
-  const hasRecordedDecision = marker => change.history.some(entry => entry.includes(marker) && textLength(entry.split(" · ").at(-1).trim()) >= 12);
+  const hasRecordedDecision = marker => change.history.some(entry => {
+    const markerIndex = entry.indexOf(marker);
+    if (markerIndex === -1) return false;
+    const evidenceStart = entry.indexOf(" · ", markerIndex + marker.length);
+    return evidenceStart !== -1 && textLength(entry.slice(evidenceStart + 3).trim()) >= 12;
+  });
   const hasIndependentPeerReview = change.history.some(entry => {
     const marker = "Peer review by ";
     const markerIndex = entry.indexOf(marker);
