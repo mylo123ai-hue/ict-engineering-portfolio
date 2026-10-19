@@ -46,6 +46,9 @@ RECOVERY_CHECKS = {
     "ap-east-14": "AP heartbeat restored; client gateway and DNS checks passed",
 }
 READINESS_KEYS = {"scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady"}
+ECMASCRIPT_WHITESPACE = "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680" \
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a" \
+    "\u2028\u2029\u202f\u205f\u3000\ufeff"
 
 
 def is_record(value):
@@ -60,6 +63,11 @@ def is_text(value):
     except UnicodeEncodeError:
         return False
     return True
+
+
+def trim_text(value):
+    """Trim exactly the Unicode whitespace set used by JavaScript String.trim()."""
+    return value.strip(ECMASCRIPT_WHITESPACE)
 
 
 def is_one_of(value, options):
@@ -206,7 +214,7 @@ def valid_node(node):
     if not is_record(investigation) or not is_one_of(investigation.get("status"), {"Investigating", "Resolved"}):
         return False
     if (
-        not all(is_text(investigation.get(key)) and investigation[key].strip() for key in ("owner", "cause", "action"))
+        not all(is_text(investigation.get(key)) and trim_text(investigation[key]) for key in ("owner", "cause", "action"))
         or investigation["owner"] == "Unassigned"
     ):
         return False
@@ -214,7 +222,7 @@ def valid_node(node):
         is_text(investigation.get("verification"))
         and investigation["verification"] == RECOVERY_CHECKS.get(node["id"], "Service response and key resource signals returned to the expected range")
         and is_text(investigation.get("notes"))
-        and len(investigation["notes"].strip()) >= 8
+        and len(trim_text(investigation["notes"])) >= 8
     )
     if investigation["status"] == "Investigating":
         return node["health"] != "Healthy"
@@ -233,15 +241,15 @@ def valid_finding(finding):
     cvss = finding.get("cvss")
     if not is_finite_number(cvss) or not 0 <= cvss <= 10:
         return False
-    if finding["status"] != "Open" and (not finding["owner"].strip() or finding["owner"] == "Unassigned" or len(finding["responsePlan"].strip()) < 12):
+    if finding["status"] != "Open" and (not trim_text(finding["owner"]) or finding["owner"] == "Unassigned" or len(trim_text(finding["responsePlan"])) < 12):
         return False
-    return finding["status"] != "Resolved" or len(finding["resolution"].strip()) >= 12
+    return finding["status"] != "Resolved" or len(trim_text(finding["resolution"])) >= 12
 
 
 def valid_ticket(ticket):
     if not is_record(ticket) or not isinstance(ticket.get("id"), str) or not re.fullmatch(r"HD-[0-9]+", ticket["id"]):
         return False
-    if not all(is_text(ticket.get(key)) and ticket[key].strip() for key in ("subject", "requester")) or not is_text(ticket.get("assignee")):
+    if not all(is_text(ticket.get(key)) and trim_text(ticket[key]) for key in ("subject", "requester")) or not is_text(ticket.get("assignee")):
         return False
     if not is_one_of(ticket.get("category"), {"Access & accounts", "Hardware", "Network", "Software", "Other"}):
         return False
@@ -269,10 +277,10 @@ def valid_ticket(ticket):
         return False
     if ticket["status"] != "New":
         if (
-            not ticket["assignee"].strip()
+            not trim_text(ticket["assignee"])
             or ticket["assignee"] == "Unassigned"
             or first_response is None
-            or not any(len(update.strip()) >= 8 for update in ticket["updates"])
+            or not any(len(trim_text(update)) >= 8 for update in ticket["updates"])
         ):
             return False
     return ticket["status"] != "Resolved" or any("requester/service recovery confirmed" in update for update in ticket["updates"])
@@ -282,9 +290,9 @@ def valid_change(change):
     if not is_record(change) or not isinstance(change.get("id"), str) or not re.fullmatch(r"CHG-[0-9]+", change["id"]):
         return False
     if (
-        not all(is_text(change.get(key)) and change[key].strip() for key in ("title", "system", "window", "owner"))
+        not all(is_text(change.get(key)) and trim_text(change[key]) for key in ("title", "system", "window", "owner"))
         or change["owner"] == "Unassigned"
-        or not all(is_text(change.get(key)) and len(change[key].strip()) >= 12 for key in ("impact", "rollback"))
+        or not all(is_text(change.get(key)) and len(trim_text(change[key])) >= 12 for key in ("impact", "rollback"))
     ):
         return False
     statuses = {"Pending approval", "Rejected", "Approved", "In progress", "Completed", "Rollback required", "Rolled back"}
@@ -295,7 +303,7 @@ def valid_change(change):
     if not is_record(readiness) or not READINESS_KEYS.issubset(readiness) or not all(isinstance(readiness[key], bool) for key in READINESS_KEYS):
         return False
     if readiness["validationReady"] and (
-        not is_text(change.get("validationPlan")) or len(change["validationPlan"].strip()) < 12
+        not is_text(change.get("validationPlan")) or len(trim_text(change["validationPlan"])) < 12
     ):
         return False
     if not isinstance(history, list) or not all(is_text(entry) for entry in history):
@@ -306,7 +314,7 @@ def valid_change(change):
             if marker_index == -1:
                 continue
             evidence_start = entry.find(" · ", marker_index + len(marker))
-            if evidence_start != -1 and len(entry[evidence_start + 3:].strip()) >= 12:
+            if evidence_start != -1 and len(trim_text(entry[evidence_start + 3:])) >= 12:
                 return True
         return False
 
@@ -314,8 +322,8 @@ def valid_change(change):
         for entry in history:
             if "Peer review by " not in entry:
                 continue
-            reviewer = entry.split("Peer review by ", 1)[1].split(" · ", 1)[0].strip()
-            if reviewer and reviewer.lower() != change["owner"].strip().lower():
+            reviewer = trim_text(entry.split("Peer review by ", 1)[1].split(" · ", 1)[0])
+            if reviewer and reviewer.lower() != trim_text(change["owner"]).lower():
                 return True
         return False
 
@@ -330,20 +338,20 @@ def valid_change(change):
         return False
     if change["status"] in {"In progress", "Completed", "Rollback required", "Rolled back"}:
         evidence = change.get("preChangeEvidence")
-        if not is_text(evidence) or len(evidence.strip()) < 12:
+        if not is_text(evidence) or len(trim_text(evidence)) < 12:
             return False
         if not has_recorded_decision("Implementation started in approved window"):
             return False
     if change["status"] in {"Completed", "Rollback required"}:
         evidence = change.get("validationEvidence")
-        if not is_text(evidence) or len(evidence.strip()) < 12:
+        if not is_text(evidence) or len(trim_text(evidence)) < 12:
             return False
         outcome = "Validation passed" if change["status"] == "Completed" else "Validation failed"
         if not has_recorded_decision(outcome):
             return False
     if change["status"] == "Rolled back":
         evidence = change.get("rollbackEvidence")
-        if not is_text(evidence) or len(evidence.strip()) < 12:
+        if not is_text(evidence) or len(trim_text(evidence)) < 12:
             return False
         if not has_recorded_decision("Rollback executed"):
             return False

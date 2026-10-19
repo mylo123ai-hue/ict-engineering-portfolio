@@ -172,6 +172,25 @@ class DemoStateApiTests(unittest.TestCase):
             self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": unsafe_exponent})[0], 422)
         self.assertEqual(self.request("/api/state")[1], {"state": state, "revision": 1})
 
+    def test_api_trimming_matches_javascript_string_trim(self):
+        new_ticket = {
+            "id": "HD-1048", "subject": "Synthetic request", "requester": "Demo User",
+            "assignee": "Unassigned", "category": "Software", "priority": "Normal", "status": "New",
+            "ageMinutes": 0, "firstResponseMinutes": None, "updates": [],
+        }
+        bom_only = self.valid_casebook()
+        bom_only["tickets"] = [{**new_ticket, "subject": "\ufeff"}]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": bom_only})[0], 422)
+        separator = self.valid_casebook()
+        separator["tickets"] = [{**new_ticket, "subject": "\u001c"}]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": separator})[0], 200)
+        note = self.valid_casebook()
+        note["tickets"] = [{
+            **new_ticket, "status": "In progress", "assignee": "R. Patel",
+            "firstResponseMinutes": 6, "updates": ["\u001c" * 8],
+        }]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": note})[0], 200)
+
     def test_revision_history_and_restore_are_auditable_and_compare_and_swap(self):
         original = self.valid_casebook()
         original["findings"] = [{

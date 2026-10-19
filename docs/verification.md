@@ -6,7 +6,7 @@ The portfolio began as a static vanilla JavaScript single-page application with 
 
 ## Automated checks
 
-- At the backend-cycle checkpoint, `npm test` passed 16 Node model tests and 61 Python standard-library API/preview tests. The final-cycle run now passes 17 Node tests and 65 Python tests; details are recorded below.
+- At the backend-cycle checkpoint, `npm test` passed 16 Node model tests and 61 Python standard-library API/preview tests. The latest final-cycle run passes 17 Node tests and 66 Python tests; details are recorded below.
 - `npm run check` — syntax checks for `src/app.js` and `src/model.js` pass without extra dependencies.
 - `node --test --experimental-test-coverage` — model has 100% line coverage and 90.58% branch coverage in the current recorded run (17 tests).
 - Tests cover malformed, duplicate-ID, unsupported-asset, and incomplete persisted state; canonical UTC ticket creation timestamps; non-empty ticket and change details; migration of saved database, firewall utilization signals, progressed tickets, and approved changes; SLA calculation and first-response recording on ticket ownership; server-side first-response and work-note requirements on worked tickets; assigned ticket transitions and verified resolution; security ownership and closure evidence; incident cause/action and recovery evidence; network fault domains across all 64 combinations of the four selectable sites, four symptoms, and four impact scopes; change readiness; independent peer review distinct from the owner; and the written-evidence gates for approval, rejection, implementation start, validation, and rollback.
@@ -109,7 +109,7 @@ The starting point was `development` at `9f632ad7469f0254ec2b622c112da2499a164ec
 
 ### Final-cycle automated checks
 
-- `npm test` — 17 Node model tests and 65 Python API/server tests passed.
+- `npm test` — 17 Node model tests and 66 Python API/server tests passed.
 - `npm run check` — `src/app.js` and `src/model.js` syntax checks passed.
 - `python3 -B -m py_compile scripts/serve.py scripts/backup_demo_state.py` — passed.
 - `git diff --check` — passed.
@@ -117,6 +117,7 @@ The starting point was `development` at `9f632ad7469f0254ec2b622c112da2499a164ec
 - Model and API regressions reject whitespace-only ticket subject/requester and incomplete change planning fields. Ticket creation timestamps now require the exact UTC format the UI generates; week dates, ordinal dates, local timestamps, invalid calendar dates, and year zero are rejected at both validation boundaries.
 - Sequence ID regression coverage verifies that tickets and changes increment beyond JavaScript's safe integer range without producing rounded or scientific-notation IDs.
 - Portable JSON validation accepts the maximum safe integer and rejects the next integer plus integral floats `1e20` and `1e21`; the browser and Python API now apply the same safe-integer boundary regardless of JSON exponent notation.
+- Required-field and evidence validation now trim the same ECMAScript whitespace code points on the API and in the browser. Regression cases reject a BOM-only subject on both sides and accept the same non-trimmed separator/evidence boundaries.
 - A maintenance readiness regression proves an unready request remains valid while the plan is outstanding, but setting `validationReady` requires a non-empty plan of at least 12 characters.
 - Browser and Python string-length checks now use the same Unicode code-point semantics. Six emoji no longer meet a 12-character evidence requirement merely because JavaScript counts UTF-16 surrogate pairs separately.
 - A final side-by-side validator review found two edge cases: the browser rejected an incident owner of `Unassigned` while the API accepted it, and JavaScript locale-lowercasing disagreed with Python full case-folding for one Unicode reviewer name. The API now rejects `Unassigned`; both layers now use matching locale-independent Unicode lowercase comparison for reviewer/owner names. Focused regressions confirm those rules on both validators, including the Unicode reviewer case.

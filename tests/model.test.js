@@ -38,6 +38,8 @@ test("demo state validation rejects truncated or malformed saved data", () => {
   for (const field of ["subject", "requester"]) {
     assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[1], [field]: "   " }] }), false, `rejects a blank ${field}`);
   }
+  assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[1], subject: "\ufeff" }] }), false, "JavaScript trim treats BOM as whitespace");
+  assert.equal(isDemoState({ ...saved, tickets: [{ ...saved.tickets[1], subject: "\u001c" }] }), true, "JavaScript trim preserves the file-separator control");
   assert.equal(isDemoState({ ...saved, findings: [{ ...saved.findings[0], severity: "<img src=x onerror=alert(1)>" }] }), false);
   assert.equal(isDemoState({ ...saved, findings: [{ ...saved.findings[0], cvss: '9.8"><img src=x>' }] }), false);
   assert.equal(isDemoState({ ...saved, nodes: [{ ...saved.nodes[0], signals: { ...saved.nodes[0].signals, interfaceErrors: "4.8%" } }] }), false);
