@@ -124,14 +124,14 @@ function validFinding(finding) {
 }
 
 function validTicket(ticket) {
-  if (!isRecord(ticket) || !/^HD-\d+$/.test(ticket.id) || !isText(ticket.subject) || !ticket.subject.trim() || !isText(ticket.requester) || !ticket.requester.trim() || !["Access & accounts", "Hardware", "Network", "Software", "Other"].includes(ticket.category) || !["Low", "Normal", "High"].includes(ticket.priority) || !ticketStatuses.includes(ticket.status) || !isText(ticket.assignee) || !Number.isFinite(ticket.ageMinutes) || ticket.ageMinutes < 0 || !(ticket.firstResponseMinutes === null || Number.isFinite(ticket.firstResponseMinutes) && ticket.firstResponseMinutes >= 0) || !(ticket.createdAt === undefined || isIsoTimestamp(ticket.createdAt)) || !Array.isArray(ticket.updates) || !ticket.updates.every(isText)) return false;
+  if (!isRecord(ticket) || !/^HD-\d+$/.test(ticket.id) || !isText(ticket.subject) || !ticket.subject.trim() || !isText(ticket.requester) || !ticket.requester.trim() || !["Access & accounts", "Hardware", "Network", "Software", "Other"].includes(ticket.category) || !["Low", "Normal", "High"].includes(ticket.priority) || !ticketStatuses.includes(ticket.status) || !isText(ticket.assignee) || !Number.isFinite(ticket.ageMinutes) || ticket.ageMinutes < 0 || !(ticket.firstResponseMinutes === null || Number.isFinite(ticket.firstResponseMinutes) && ticket.firstResponseMinutes >= 0) || !(ticket.createdAt === undefined || isIsoTimestamp(ticket.createdAt)) || !Array.isArray(ticket.updates) || !ticket.updates.every(update => isText(update) && update.trim())) return false;
   if (ticket.status === "New" && ticket.firstResponseMinutes !== null) return false;
   if (ticket.status !== "New" && (!ticket.assignee.trim() || ticket.assignee === "Unassigned" || ticket.firstResponseMinutes === null || !ticket.updates.some(update => textLength(update.trim()) >= 8))) return false;
   return ticket.status !== "Resolved" || ticket.updates.some(update => update.includes("requester/service recovery confirmed"));
 }
 
 function validChange(change) {
-  if (!isRecord(change) || !/^CHG-\d+$/.test(change.id) || !isText(change.title) || !change.title.trim() || !isText(change.system) || !change.system.trim() || !isText(change.window) || !change.window.trim() || !isText(change.impact) || textLength(change.impact.trim()) < 12 || !isText(change.rollback) || textLength(change.rollback.trim()) < 12 || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status) || !isText(change.owner) || !change.owner.trim() || change.owner === "Unassigned" || !isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean") || !Array.isArray(change.history) || !change.history.every(isText)) return false;
+  if (!isRecord(change) || !/^CHG-\d+$/.test(change.id) || !isText(change.title) || !change.title.trim() || !isText(change.system) || !change.system.trim() || !isText(change.window) || !change.window.trim() || !isText(change.impact) || textLength(change.impact.trim()) < 12 || !isText(change.rollback) || textLength(change.rollback.trim()) < 12 || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status) || !isText(change.owner) || !change.owner.trim() || change.owner === "Unassigned" || !isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean") || !Array.isArray(change.history) || !change.history.every(entry => isText(entry) && entry.trim())) return false;
   if (change.readiness.validationReady && (!isText(change.validationPlan) || textLength(change.validationPlan.trim()) < 12)) return false;
   const hasRecordedDecision = marker => change.history.some(entry => {
     const markerIndex = entry.indexOf(marker);
@@ -191,7 +191,7 @@ export function isDemoState(value) {
   if (new TextEncoder().encode(serialized).length > 1_000_000) return false;
   if (value.findings.length > casebookLimits.findings || value.tickets.length > casebookLimits.tickets || value.maintenance.length > casebookLimits.maintenance || value.events.length > casebookLimits.events) return false;
   const nodeIds = new Set(value.nodes.map(node => node?.id));
-  if (value.nodes.length !== Object.keys(nodeSignalFields).length || !Object.keys(nodeSignalFields).every(id => nodeIds.has(id)) || !value.events.every(isText)) return false;
+  if (value.nodes.length !== Object.keys(nodeSignalFields).length || !Object.keys(nodeSignalFields).every(id => nodeIds.has(id)) || !value.events.every(event => isText(event) && event.trim())) return false;
   if (![value.nodes, value.findings, value.tickets, value.maintenance].every(hasUniqueIds)) return false;
   const findingIds = new Set(value.findings.map(finding => finding?.id));
   if (value.tickets.some(ticket => ticket?.relatedAssetId !== undefined && (!isText(ticket.relatedAssetId) || ticket.relatedAssetId && !nodeIds.has(ticket.relatedAssetId)))) return false;

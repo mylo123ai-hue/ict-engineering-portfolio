@@ -90,6 +90,15 @@ test("saved state rejects blank infrastructure labels and security finding ident
     state.findings[0][field] = " \ufeff ";
     assert.equal(isDemoState(state), false, `rejects a blank finding ${field}`);
   }
+  const eventState = cloneSeed();
+  eventState.events[0] = " \ufeff ";
+  assert.equal(isDemoState(eventState), false, "rejects a blank activity record");
+  const ticketState = cloneSeed();
+  ticketState.tickets[1].updates = [" \ufeff "];
+  assert.equal(isDemoState(ticketState), false, "rejects a blank ticket update");
+  const changeState = cloneSeed();
+  changeState.maintenance[0].history = [" \ufeff "];
+  assert.equal(isDemoState(changeState), false, "rejects a blank change-history entry");
   assert.equal(isDemoState(saved), true);
 });
 

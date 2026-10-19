@@ -280,7 +280,7 @@ def valid_ticket(ticket):
                 return False
         except ValueError:
             return False
-    if not isinstance(ticket.get("updates"), list) or not all(is_text(update) for update in ticket["updates"]):
+    if not isinstance(ticket.get("updates"), list) or not all(is_text(update) and trim_text(update) for update in ticket["updates"]):
         return False
     if ticket["status"] == "New" and first_response is not None:
         return False
@@ -315,7 +315,7 @@ def valid_change(change):
         not is_text(change.get("validationPlan")) or len(trim_text(change["validationPlan"])) < 12
     ):
         return False
-    if not isinstance(history, list) or not all(is_text(entry) for entry in history):
+    if not isinstance(history, list) or not all(is_text(entry) and trim_text(entry) for entry in history):
         return False
     def has_recorded_decision(marker):
         for entry in history:
@@ -384,7 +384,7 @@ def valid_state_shape(state):
         return False
     if not all(isinstance(state[key], list) and len(state[key]) <= limit for key, limit in CASEBOOK_LIMITS.items()):
         return False
-    if not all(is_text(event) for event in state["events"]):
+    if not all(is_text(event) and trim_text(event) for event in state["events"]):
         return False
     validators = {"nodes": valid_node, "findings": valid_finding, "tickets": valid_ticket, "maintenance": valid_change}
     if len(state["nodes"]) != len(NODE_SIGNALS):

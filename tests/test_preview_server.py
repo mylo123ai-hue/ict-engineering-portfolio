@@ -1397,7 +1397,7 @@ class DemoStateApiTests(unittest.TestCase):
         })
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
 
-    def test_api_rejects_whitespace_only_asset_and_finding_identity(self):
+    def test_api_rejects_whitespace_only_domain_labels_and_audit_entries(self):
         fields = ("name", "type", "zone", "uptime", "icon")
         for field in fields:
             state = self.valid_casebook()
@@ -1414,6 +1414,28 @@ class DemoStateApiTests(unittest.TestCase):
             state["findings"] = [{**finding, field: " \ufeff "}]
             with self.subTest(finding_field=field):
                 self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        state = self.valid_casebook()
+        state["events"] = [" \ufeff "]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        state = self.valid_casebook()
+        state["tickets"] = [{
+            "id": "HD-1", "subject": "Synthetic request", "requester": "A. Example", "assignee": "Unassigned",
+            "category": "Other", "priority": "Normal", "status": "New", "ageMinutes": 0,
+            "firstResponseMinutes": None, "updates": [" \ufeff "],
+        }]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        readiness = {key: False for key in ("scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady")}
+        state = self.valid_casebook()
+        state["maintenance"] = [{
+            "id": "CHG-1", "title": "Synthetic change", "system": "Synthetic host", "window": "Planned · 22:00–22:30",
+            "impact": "Users may see a short restart delay.", "rollback": "Restore the prior snapshot and verify the service.",
+            "validationPlan": "Check sign-in and response time against the baseline.", "owner": "R. Patel", "risk": "Medium",
+            "status": "Pending approval", "readiness": readiness, "history": [" \ufeff "],
+        }]
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
 
         self.assertEqual(self.request("/api/state")[1]["revision"], 0)
 
