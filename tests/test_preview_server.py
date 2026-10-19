@@ -1140,6 +1140,23 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/state", "PUT", {"revision": revision + 1, "state": state})[0], 422)
         self.assertEqual(self.request("/api/state")[1]["revision"], revision + 1)
 
+        unicode_owner_state = self.valid_casebook()
+        unicode_owner_state["maintenance"].append({
+            "id": "CHG-502", "title": "Synthetic Unicode owner review", "system": "Synthetic ERP host",
+            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
+            "rollback": "Restore the recorded snapshot and verify the service.",
+            "validationPlan": "Compare sign-in and response time with the pre-change baseline.", "owner": "Straße",
+            "risk": "High", "status": "Approved", "readiness": {**ready, "peerReview": True},
+            "history": [
+                "Peer review by STRASSE · Independent validation plan and rollback path reviewed",
+                "Approved by A. Reviewer · Owner accepted the tested rollback and impact plan",
+            ],
+        })
+        self.assertEqual(
+            self.request("/api/state", "PUT", {"revision": revision + 1, "state": unicode_owner_state})[0],
+            200,
+        )
+
     def test_api_rejects_malformed_nested_json_types(self):
         cases = []
         invalid_node_id = self.valid_casebook()

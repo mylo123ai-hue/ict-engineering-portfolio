@@ -315,7 +315,7 @@ def valid_change(change):
             if "Peer review by " not in entry:
                 continue
             reviewer = entry.split("Peer review by ", 1)[1].split(" · ", 1)[0].strip()
-            if reviewer and reviewer.casefold() != change["owner"].strip().casefold():
+            if reviewer and reviewer.lower() != change["owner"].strip().lower():
                 return True
         return False
 

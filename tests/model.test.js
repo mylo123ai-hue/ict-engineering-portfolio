@@ -391,4 +391,6 @@ test("high-risk changes require an independent peer review", () => {
   const ownerless = { ...reviewed, owner: "" };
   assert.equal(maintenanceAction(ownerless, "approve", { peerReviewer: "T. Brown", evidence: approvalEvidence }), ownerless);
   assert.equal(maintenanceAction(reviewed, "approve", { peerReviewer: "T. Brown", evidence: approvalEvidence }).status, "Approved");
+  const unicodeOwner = { ...reviewed, owner: "Straße" };
+  assert.equal(maintenanceAction(unicodeOwner, "approve", { peerReviewer: "STRASSE", evidence: approvalEvidence }).status, "Approved");
 });

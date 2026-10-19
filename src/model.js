@@ -140,7 +140,7 @@ function validChange(change) {
     const markerIndex = entry.indexOf(marker);
     if (markerIndex === -1) return false;
     const reviewer = entry.slice(markerIndex + marker.length).split(" · ")[0].trim();
-    return reviewer && reviewer.toLocaleLowerCase() !== change.owner.trim().toLocaleLowerCase();
+    return reviewer && reviewer.toLowerCase() !== change.owner.trim().toLowerCase();
   });
   if (readyChangeStatuses.includes(change.status) && !readinessChecks.every(([key]) => change.readiness[key] === true)) return false;
   if (readyChangeStatuses.includes(change.status) && !hasRecordedDecision("Approved by ")) return false;
