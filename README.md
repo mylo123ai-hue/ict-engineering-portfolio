@@ -6,7 +6,7 @@ Prompt Perfect structured the original request. Designer applied the configured 
 
 **Vanilla JavaScript · Python standard library · SQLite · five applications · synthetic scenarios only**
 
-![Portfolio homepage in a local Chromium session](docs/screenshots/homepage-desktop.jpg)
+[![Portfolio homepage in a local Chromium session](docs/screenshots/homepage-desktop.jpg)](docs/screenshots/homepage-desktop.jpg)
 
 ## The applications
 
