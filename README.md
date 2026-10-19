@@ -44,6 +44,10 @@ These screenshots were captured from the running application in headless Chromiu
 
 ![Genuine 390-pixel mobile Chromium capture of the portfolio homepage, its application cards, and synthetic operational summary](docs/screenshots/final-cycle/homepage-mobile.jpg)
 
+**Mobile workflow capture · 390 px**
+
+<p align="center"><a href="docs/screenshots/final-cycle/network-isolation-mobile.jpg"><img src="docs/screenshots/final-cycle/network-isolation-mobile.jpg" alt="Mobile network fault isolation workflow with East wing packet-loss results and a helpdesk handoff" width="320"></a></p>
+
 ## How the project was made
 
 The work began with a single owner prompt: “Build me something that someone hiring an ICT engineer might find impressive.” Prompt Perfect structured the request for the owner’s custom-configured Designer. Designer applied the owner’s engineering principles and proposed project options; the owner selected the ICT Engineering Portfolio. **Luna 6 High implemented the original applications. Codex Cloud performed the later engineering work.**

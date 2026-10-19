@@ -38,6 +38,10 @@ The East wing packet-loss scenario compares impact, client link, gateway, and up
 
 The browser workflow also handed the diagnostic evidence to a new helpdesk ticket; the created ticket and evidence were read back from SQLite.
 
+The same diagnostic was checked at 390 px on a phone-sized viewport. The result, next discriminating test, and helpdesk handoff remain visible without horizontal page scrolling.
+
+![Genuine 390-pixel mobile Chromium capture of the East wing packet-loss diagnostic, likely fault domain, next test, and ticket handoff](screenshots/final-cycle/network-isolation-mobile.jpg)
+
 ### 5. Maintenance Approval & Rollback
 
 CHG-208 passes readiness review, starts within its approved window, fails post-change validation, then records restoration and a passing recovery check.
