@@ -246,6 +246,12 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(conflict["revision"], 1)
         self.assertEqual(self.request("/api/state")[1]["revision"], 1)
 
+    def test_api_rejects_a_write_envelope_without_state(self):
+        status, response = self.request("/api/state", "PUT", {"revision": 0})
+        self.assertEqual(status, 422)
+        self.assertEqual(response["error"], "Invalid casebook state")
+        self.assertEqual(self.request("/api/state"), (200, {"state": None, "revision": 0}))
+
     def test_store_rejects_invalid_state_and_revision_before_writing(self):
         with self.assertRaisesRegex(ValueError, "state failed validation"):
             self.server.store.write(0, {"nodes": [], "findings": [], "tickets": [], "maintenance": [], "events": []})

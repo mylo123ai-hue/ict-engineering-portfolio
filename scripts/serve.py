@@ -771,6 +771,7 @@ class PortfolioHandler(SimpleHTTPRequestHandler):
             not isinstance(request, dict)
             or type(request.get("revision")) is not int
             or not 0 <= request["revision"] <= MAX_REVISION
+            or "state" not in request
         ):
             self._send_json(422, {"error": "Invalid casebook state"})
             return
