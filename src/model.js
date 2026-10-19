@@ -194,11 +194,11 @@ export function migrateDemoState(value) {
     node.signals[newKey] = node.signals[oldKey];
     delete node.signals[oldKey];
   }
-  for (const change of migrated.maintenance || []) {
-    if (change.status === "Rolled back" && !Object.hasOwn(change, "rollbackVerificationEvidence")) {
-      change.status = "Recovery verification required";
-      change.history.push("Legacy rollback reopened · service recovery verification required");
-    }
+  const maintenance = Array.isArray(migrated.maintenance) ? migrated.maintenance : [];
+  for (const change of maintenance) {
+    if (!isRecord(change) || change.status !== "Rolled back" || Object.hasOwn(change, "rollbackVerificationEvidence") || !Array.isArray(change.history)) continue;
+    change.status = "Recovery verification required";
+    change.history.push("Legacy rollback reopened · service recovery verification required");
   }
   return migrated;
 }

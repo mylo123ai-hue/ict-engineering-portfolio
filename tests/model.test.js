@@ -204,6 +204,20 @@ test("demo state migration preserves a browser save with previous utilization si
   assert.equal(migrateDemoState(null), null);
 });
 
+test("legacy recovery migration leaves malformed maintenance records for state validation", () => {
+  const malformedMaintenance = [[null], { status: "Rolled back" }, [{ status: "Rolled back" }]];
+  for (const maintenance of malformedMaintenance) {
+    const saved = cloneSeed();
+    const database = saved.nodes.find(node => node.id === "db-pri-01");
+    database.signals.connections = database.signals.connectionUtilization;
+    delete database.signals.connectionUtilization;
+    saved.maintenance = maintenance;
+
+    const migrated = migrateDemoState(saved);
+    assert.equal(isDemoState(migrated), false, "malformed records remain invalid");
+  }
+});
+
 test("ticket transitions reject invalid steps and permit a deliberate reopen", () => {
   const ticket = { id: "HD-1048", status: "New" };
   assert.equal(transitionTicket(ticket, "start").status, "In progress");
