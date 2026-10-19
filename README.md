@@ -90,6 +90,7 @@ The current final-cycle build passes:
 
 - `npm test`: 22 Node model tests and 65 Python API/preview tests.
 - `npm run check`: syntax checks for both JavaScript modules.
+- `node --test --experimental-test-coverage`: 100% model line coverage and 89.33% branch coverage.
 - Chromium checks across five application workflows, responsive routes, mobile dialogs, contrast samples, and browser/API validation agreement. SQLite persistence, revision restore, stale-write conflict, and backup results are recorded in [verification evidence](docs/verification.md).
 
 The test suite uses built-in Node.js and Python libraries. Browser automation used the environment-provided Playwright and Chromium; neither was added as an application dependency.
