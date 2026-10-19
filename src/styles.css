@@ -293,10 +293,10 @@ body {
   margin-bottom:26px
 }
 .eyebrow {
-  font-size:9px;
+  font-size:10px;
   letter-spacing:1.45px;
   font-weight:700;
-  color:#97a1b2;
+  color:#59677d;
   margin-bottom:9px
 }
 .eyebrow span {
@@ -1372,8 +1372,8 @@ tbody tr:last-child td {
   display:inline-flex;
   align-items:center;
   gap:4px;
-  font-size:8px;
-  color:#8390a3
+  font-size:9px;
+  color:#59677d
 }
 .priority i {
   width:5px;
@@ -1382,7 +1382,7 @@ tbody tr:last-child td {
   border-radius:50%
 }
 .priority.high {
-  color:#d97575
+  color:#a34242
 }
 .priority.high i {
   background:#e17b7b
@@ -1437,12 +1437,12 @@ tbody tr:last-child td {
   padding:9px 0
 }
 .note-items>div>span {
-  font-size:8px;
-  color:#a3adbb
+  font-size:9px;
+  color:#59677d
 }
 .note-items p {
-  font-size:8px;
-  color:#909bab;
+  font-size:9px;
+  color:#59677d;
   margin:0
 }
 .note-items strong {
@@ -1625,10 +1625,10 @@ tbody tr:last-child td {
   height:22px;
   border-radius:7px;
   background:#f3f5fa;
-  color:#9aa5b4;
+  color:#59677d;
   display:grid;
   place-items:center;
-  font-size:8px;
+  font-size:9px;
   font-weight:700
 }
 .sequence-item.complete>span {
@@ -2650,10 +2650,10 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
   gap:5px;
   border-radius:12px;
   padding:4px 7px;
-  font-size:7px;
+  font-size:9px;
   font-weight:700;
   background:#edf8f3;
-  color:#369578;
+  color:#27745f;
   white-space:nowrap
 }
 .sla-pill i {
@@ -2664,11 +2664,11 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 }
 .sla-due-soon {
   background:#fff7e8;
-  color:#b17d2c
+  color:#80520d
 }
 .sla-breached {
   background:#fff0ef;
-  color:#c95f64
+  color:#a34242
 }
 .sla-summary strong {
   font:600 10px "DM Sans",sans-serif;
@@ -3215,7 +3215,7 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
   color:#68778d
 }
 .sla-pill {
-  font-size:8px
+  font-size:9px
 }
 .change-impact a {
   color:#5269c4;
