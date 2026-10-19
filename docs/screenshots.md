@@ -12,7 +12,7 @@ The homepage images show the casebook at the start of the capture run. Applicati
 
 ## Application workflow states
 
-Each desktop application view shows a completed, saved synthetic workflow, not a real production incident or change. The mobile network view captures a completed in-page diagnostic before the operator chooses whether to create its helpdesk handoff; the main network workflow screenshot and its created ticket are also verified in SQLite.
+Each desktop application view shows a representative saved synthetic decision state, not a real production incident or change. The gallery includes both in-progress and closed outcomes. The mobile network view captures a completed in-page diagnostic before the operator chooses whether to create its helpdesk handoff; the main network workflow screenshot and its created ticket are also verified in SQLite.
 
 ### 1. Infrastructure Health Monitor
 
