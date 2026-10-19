@@ -120,7 +120,7 @@ function hasIndependentPeerReview(change) {
     const marker = "Peer review by ";
     if (!entry.includes(marker)) return false;
     const reviewer = entry.split(marker, 2)[1].split(" · ", 1)[0].trim();
-    return reviewer && reviewer.toLocaleLowerCase() !== change.owner.trim().toLocaleLowerCase();
+    return reviewer && reviewer.toLowerCase() !== change.owner.trim().toLowerCase();
   });
 }
 

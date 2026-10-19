@@ -1134,6 +1134,21 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/state", "PUT", {"revision": revision + 1, "state": state})[0], 422)
         self.assertEqual(self.request("/api/state")[1]["revision"], revision + 1)
 
+        unicode_names = self.valid_casebook()
+        unicode_names["maintenance"].append({
+            "id": "CHG-502", "title": "Synthetic Unicode reviewer check", "owner": "Straße",
+            "risk": "High", "status": "Approved", "readiness": {**ready, "peerReview": True},
+            "history": [
+                "Peer review by STRASSE · Independent validation plan and rollback path reviewed",
+                "Approved by Jamie Diaz · Owner accepted the tested rollback and impact plan",
+            ],
+        })
+        self.assertEqual(
+            self.request("/api/state", "PUT", {"revision": revision + 1, "state": unicode_names})[0],
+            200,
+            "Python lowercase comparison should match the browser's Unicode lowercase comparison",
+        )
+
     def test_api_rejects_malformed_nested_json_types(self):
         cases = []
         invalid_node_id = self.valid_casebook()
@@ -1142,6 +1157,16 @@ class DemoStateApiTests(unittest.TestCase):
         invalid_health = self.valid_casebook()
         invalid_health["nodes"][0]["health"] = []
         cases.append(invalid_health)
+        blank_change_owner = self.valid_casebook()
+        blank_change_owner["maintenance"].append({
+            "id": "CHG-1", "title": "Synthetic maintenance", "owner": "\ufeff", "risk": "Low",
+            "status": "Pending approval",
+            "readiness": {key: False for key in (
+                "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
+            )},
+            "history": ["Request created · awaiting review"],
+        })
+        cases.append(blank_change_owner)
         invalid_signal = self.valid_casebook()
         invalid_signal["nodes"][0]["signals"]["portUtilization"] = []
         cases.append(invalid_signal)

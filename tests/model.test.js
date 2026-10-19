@@ -51,6 +51,9 @@ test("demo state validation rejects truncated or malformed saved data", () => {
 test("browser state validation rejects snapshots that violate server-side gates", () => {
   const seed = cloneSeed();
   assert.equal(isDemoState({ ...seed, unexpected: "extension" }), false, "unknown top-level fields are rejected by both validators");
+  const blankOwner = cloneSeed();
+  blankOwner.maintenance[0].owner = "\ufeff";
+  assert.equal(isDemoState(blankOwner), false, "Unicode byte-order marks are whitespace for browser owner validation");
 
   const unhealthy = cloneSeed();
   const server = unhealthy.nodes.find(node => node.id === "app-srv-02");
@@ -87,6 +90,11 @@ test("browser state validation rejects snapshots that violate server-side gates"
   assert.equal(isDemoState({ ...cloneSeed(), maintenance: [approved] }), false, "high-risk changes need an independent reviewer");
   approved.owner = "Jamie Diaz";
   assert.equal(isDemoState({ ...cloneSeed(), maintenance: [approved] }), true, "an independently reviewed high-risk change passes the same gate as the API");
+
+  const unicodeNames = structuredClone(approved);
+  unicodeNames.owner = "Straße";
+  unicodeNames.history[0] = "Approved by Jamie Diaz · Peer review by STRASSE · Controls and rollback evidence were reviewed.";
+  assert.equal(isDemoState({ ...cloneSeed(), maintenance: [unicodeNames] }), true, "reviewer identity comparison uses the same locale-independent lowercase rule as the API");
 
   const rejected = { ...pending, status: "Rejected", history: ["Rejected by Jamie Diaz · The rollback plan lacks a service recovery verification step."] };
   assert.equal(isDemoState({ ...cloneSeed(), maintenance: [rejected] }), true, "rejections retain their decision rationale");
