@@ -1,4 +1,5 @@
 import json
+import copy
 from concurrent.futures import ThreadPoolExecutor
 import os
 import sqlite3
@@ -16,7 +17,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from scripts.backup_demo_state import backup_database
 from scripts.serve import (
-    DemoStateStore, MAX_SAFE_REVISION, MAX_STATE_BYTES, MAX_STATE_REQUEST_BYTES, PortfolioHandler, ROOT, create_server, is_allowed_path,
+    DemoStateStore, MAX_SAFE_REVISION, MAX_STATE_BYTES, MAX_STATE_REQUEST_BYTES, PortfolioHandler, ROOT, create_server, is_allowed_path, valid_state_shape,
 )
 
 
@@ -125,6 +126,70 @@ class DemoStateApiTests(unittest.TestCase):
             ],
             "findings": [], "tickets": [], "maintenance": [], "events": ["Synthetic demo event"],
         }
+
+    def test_browser_and_api_state_validation_agree_on_edge_case_corpus(self):
+        """Keep the independent browser and server validators aligned at their JSON boundary."""
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", "import { cloneSeed } from './src/model.js'; process.stdout.write(JSON.stringify(cloneSeed()));"],
+            cwd=ROOT, check=True, capture_output=True, text=True,
+        )
+        seed = json.loads(result.stdout)
+        cases = [("synthetic seed", copy.deepcopy(seed))]
+
+        bom_subject = copy.deepcopy(seed)
+        bom_subject["tickets"][1]["subject"] = "\ufeff"
+        cases.append(("BOM-only required ticket subject", bom_subject))
+
+        separator_subject = copy.deepcopy(seed)
+        separator_subject["tickets"][1]["subject"] = "\u001c"
+        cases.append(("ECMAScript-trim-preserved separator subject", separator_subject))
+
+        for label, value in (
+            ("largest safe JSON integer", MAX_SAFE_REVISION),
+            ("first unsafe JSON integer", MAX_SAFE_REVISION + 1),
+            ("unsafe integral exponent", 1e20),
+        ):
+            state = copy.deepcopy(seed)
+            state["nodes"][0]["extensionCounter"] = value
+            cases.append((label, state))
+
+        unassigned_incident = copy.deepcopy(seed)
+        erp = next(item for item in unassigned_incident["nodes"] if item["id"] == "app-srv-02")
+        erp["investigation"] = {
+            "owner": "Unassigned", "cause": "Elevated worker CPU", "action": "Inspect the queue",
+            "status": "Investigating",
+        }
+        cases.append(("incident without an accountable owner", unassigned_incident))
+
+        for reviewer, label in (("r. PATEL", "case-varied owner as peer"), ("T. Brown", "independent peer")):
+            state = copy.deepcopy(seed)
+            change = state["maintenance"][0]
+            change.update({
+                "risk": "High", "status": "Approved",
+                "validationPlan": "Compare ERP login and queue depth to the pre-change baseline.",
+                "readiness": {**change["readiness"], "validationReady": True, "peerReview": True},
+                "history": [
+                    f"Peer review by {reviewer} · Validation evidence and rollback steps independently reviewed.",
+                    "Approved by Jamie Diaz · Impact and recovery checks are sufficiently defined.",
+                ],
+            })
+            cases.append((label, state))
+
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", "import { readFileSync } from 'node:fs'; import { isDemoState } from './src/model.js'; const cases = JSON.parse(readFileSync(0, 'utf8')); process.stdout.write(JSON.stringify(cases.map(isDemoState)));"],
+            cwd=ROOT, input=json.dumps([state for _, state in cases], ensure_ascii=False),
+            check=True, capture_output=True, text=True,
+        )
+        browser_validity = json.loads(result.stdout)
+        revision = 0
+        for (label, state), browser_valid in zip(cases, browser_validity, strict=True):
+            with self.subTest(case=label):
+                self.assertEqual(browser_valid, valid_state_shape(state), f"validator disagreement for {label}")
+                status, _ = self.request("/api/state", "PUT", {"revision": revision, "state": state})
+                self.assertEqual(status, 200 if browser_valid else 422, label)
+                if browser_valid:
+                    revision += 1
+                self.assertEqual(self.request("/api/state")[1]["revision"], revision)
 
     def test_state_is_persisted_and_revision_conflicts_are_rejected(self):
         initial_status, initial = self.request("/api/state")
