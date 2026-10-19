@@ -22,31 +22,31 @@ Each lab follows a realistic decision path: interpret a signal or request, gathe
 
 ## Screenshots
 
-These are optimized captures from the running application in headless Chromium, using the local Python API and synthetic SQLite casebook. They show the application itself, including two workflow outcomes.
+These are optimized captures from the running application in headless Chromium, using the local Python API and synthetic SQLite casebook. They show the application itself, including two workflow outcomes. Select any image to inspect its full-resolution capture.
 
 ### Application views
 
 | Infrastructure health | Security findings |
 | --- | --- |
-| ![Infrastructure Health Monitor](docs/screenshots/health-desktop.jpg) | ![Security Findings Dashboard](docs/screenshots/security-desktop.jpg) |
+| [![Infrastructure Health Monitor](docs/screenshots/health-desktop.jpg)](docs/screenshots/health-desktop.jpg) | [![Security Findings Dashboard](docs/screenshots/security-desktop.jpg)](docs/screenshots/security-desktop.jpg) |
 
 | IT helpdesk | Network fault isolation |
 | --- | --- |
-| ![IT Helpdesk Ticket System](docs/screenshots/helpdesk-desktop.jpg) | ![Network Fault Isolation Tool](docs/screenshots/network-desktop.jpg) |
+| [![IT Helpdesk Ticket System](docs/screenshots/helpdesk-desktop.jpg)](docs/screenshots/helpdesk-desktop.jpg) | [![Network Fault Isolation Tool](docs/screenshots/network-desktop.jpg)](docs/screenshots/network-desktop.jpg) |
 
 | Maintenance approval and rollback | Mobile homepage |
 | --- | --- |
-| ![Maintenance Approval and Rollback](docs/screenshots/maintenance-desktop.jpg) | ![Portfolio homepage at a mobile viewport](docs/screenshots/homepage-mobile.jpg) |
+| [![Maintenance Approval and Rollback](docs/screenshots/maintenance-desktop.jpg)](docs/screenshots/maintenance-desktop.jpg) | [![Portfolio homepage at a mobile viewport](docs/screenshots/homepage-mobile.jpg)](docs/screenshots/homepage-mobile.jpg) |
 
 ### Mobile application view
 
-![Network fault isolation form at a 390-pixel phone viewport](docs/screenshots/network-mobile.jpg)
+[![Network fault isolation form at a 390-pixel phone viewport](docs/screenshots/network-mobile.jpg)](docs/screenshots/network-mobile.jpg)
 
 ### Workflow evidence
 
 | Multi-site packet-loss diagnosis | Change failure and recorded rollback |
 | --- | --- |
-| ![Synthetic network fault isolation result](docs/screenshots/network-isolation-result.jpg) | ![Synthetic maintenance rollback workflow](docs/screenshots/maintenance-rollback.jpg) |
+| [![Synthetic network fault isolation result](docs/screenshots/network-isolation-result.jpg)](docs/screenshots/network-isolation-result.jpg) | [![Synthetic maintenance rollback workflow](docs/screenshots/maintenance-rollback.jpg)](docs/screenshots/maintenance-rollback.jpg) |
 
 All names, requests, hosts, alerts, findings, metrics, timestamps, and outcomes shown in these images are fictional.
 
