@@ -50,6 +50,7 @@ test("operational labels retain readable color contrast", () => {
     [".main-area .sequence-item.sequence-warning>span", declarationsFor(".sequence-item.sequence-warning>span").get("background")],
     [".main-area .sequence-item.sequence-blocked>span", declarationsFor(".sequence-item.sequence-blocked>span").get("background")],
     [".main-area .sequence-item small", surface],
+    [".main-area .decision-standard span", surface],
     [".main-area .result-summary strong", "#fff7e9"],
     [".main-area .check-row", surface],
     [".main-area .check-pass", surface],
