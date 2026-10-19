@@ -5,6 +5,9 @@ export const readinessChecks = [
   ["rollbackDocumented", "Rollback steps are documented"],
   ["validationReady", "Post-change validation is defined"]
 ];
+export const casebookLimits = Object.freeze({ findings: 500, tickets: 500, maintenance: 300, events: 100 });
+// Python's len(str) counts Unicode code points; String.length counts UTF-16 units.
+export const textLength = value => Array.from(value).length;
 
 export const seed = {
   nodes: [
@@ -45,6 +48,10 @@ function isText(value) {
     } else if (unit >= 0xdc00 && unit <= 0xdfff) return false;
   }
   return true;
+}
+function isIsoTimestamp(value) {
+  return isText(value) && !value.startsWith("0000-") && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
+    && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 }
 function isPortableJSON(root) {
   const pending = [{ value: root, leave: false }];
@@ -103,25 +110,26 @@ function validNode(node) {
   const incident = node.investigation;
   if (!isRecord(incident) || !isText(incident.owner) || !incident.owner.trim() || incident.owner === "Unassigned" || !isText(incident.cause) || !incident.cause.trim() || !isText(incident.action) || !incident.action.trim() || !["Investigating", "Resolved"].includes(incident.status)) return false;
   if (incident.status === "Investigating") return node.health !== "Healthy";
-  return node.health === "Healthy" && isText(incident.verification) && recoveryChecks(node).includes(incident.verification) && isText(incident.notes) && incident.notes.trim().length >= 8;
+  return node.health === "Healthy" && isText(incident.verification) && recoveryChecks(node).includes(incident.verification) && isText(incident.notes) && textLength(incident.notes.trim()) >= 8;
 }
 
 function validFinding(finding) {
   if (!isRecord(finding) || !/^SEC-\d+$/.test(finding.id) || !isText(finding.title) || !findingStatuses.includes(finding.status) || !["Critical", "High", "Medium", "Low"].includes(finding.severity) || !Number.isFinite(finding.cvss) || finding.cvss < 0 || finding.cvss > 10 || !isText(finding.asset) || !isText(finding.owner) || !isText(finding.responsePlan) || !isText(finding.resolution)) return false;
-  if (finding.status !== "Open" && (!finding.owner.trim() || finding.owner === "Unassigned" || finding.responsePlan.trim().length < 12)) return false;
-  return finding.status !== "Resolved" || finding.resolution.trim().length >= 12;
+  if (finding.status !== "Open" && (!finding.owner.trim() || finding.owner === "Unassigned" || textLength(finding.responsePlan.trim()) < 12)) return false;
+  return finding.status !== "Resolved" || textLength(finding.resolution.trim()) >= 12;
 }
 
 function validTicket(ticket) {
-  if (!isRecord(ticket) || !/^HD-\d+$/.test(ticket.id) || !isText(ticket.subject) || !isText(ticket.requester) || !["Access & accounts", "Hardware", "Network", "Software", "Other"].includes(ticket.category) || !["Low", "Normal", "High"].includes(ticket.priority) || !ticketStatuses.includes(ticket.status) || !isText(ticket.assignee) || !Number.isFinite(ticket.ageMinutes) || ticket.ageMinutes < 0 || !(ticket.firstResponseMinutes === null || Number.isFinite(ticket.firstResponseMinutes) && ticket.firstResponseMinutes >= 0) || !(ticket.createdAt === undefined || isText(ticket.createdAt) && Number.isFinite(Date.parse(ticket.createdAt))) || !Array.isArray(ticket.updates) || !ticket.updates.every(isText)) return false;
+  if (!isRecord(ticket) || !/^HD-\d+$/.test(ticket.id) || !isText(ticket.subject) || !ticket.subject.trim() || !isText(ticket.requester) || !ticket.requester.trim() || !["Access & accounts", "Hardware", "Network", "Software", "Other"].includes(ticket.category) || !["Low", "Normal", "High"].includes(ticket.priority) || !ticketStatuses.includes(ticket.status) || !isText(ticket.assignee) || !Number.isFinite(ticket.ageMinutes) || ticket.ageMinutes < 0 || !(ticket.firstResponseMinutes === null || Number.isFinite(ticket.firstResponseMinutes) && ticket.firstResponseMinutes >= 0) || !(ticket.createdAt === undefined || isIsoTimestamp(ticket.createdAt)) || !Array.isArray(ticket.updates) || !ticket.updates.every(isText)) return false;
   if (ticket.status === "New" && ticket.firstResponseMinutes !== null) return false;
-  if (ticket.status !== "New" && (!ticket.assignee.trim() || ticket.assignee === "Unassigned" || ticket.firstResponseMinutes === null || !ticket.updates.some(update => update.trim().length >= 8))) return false;
+  if (ticket.status !== "New" && (!ticket.assignee.trim() || ticket.assignee === "Unassigned" || ticket.firstResponseMinutes === null || !ticket.updates.some(update => textLength(update.trim()) >= 8))) return false;
   return ticket.status !== "Resolved" || ticket.updates.some(update => update.includes("requester/service recovery confirmed"));
 }
 
 function validChange(change) {
-  if (!isRecord(change) || !/^CHG-\d+$/.test(change.id) || !isText(change.title) || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status) || !isText(change.owner) || !change.owner.trim() || change.owner === "Unassigned" || !isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean") || !Array.isArray(change.history) || !change.history.every(isText)) return false;
-  const hasRecordedDecision = marker => change.history.some(entry => entry.includes(marker) && entry.split(" · ").at(-1).trim().length >= 12);
+  if (!isRecord(change) || !/^CHG-\d+$/.test(change.id) || !isText(change.title) || !change.title.trim() || !isText(change.system) || !change.system.trim() || !isText(change.window) || !change.window.trim() || !isText(change.impact) || textLength(change.impact.trim()) < 12 || !isText(change.rollback) || textLength(change.rollback.trim()) < 12 || !["Low", "Medium", "High"].includes(change.risk) || !changeStatuses.includes(change.status) || !isText(change.owner) || !change.owner.trim() || change.owner === "Unassigned" || !isRecord(change.readiness) || !readinessChecks.every(([key]) => typeof change.readiness[key] === "boolean") || !Array.isArray(change.history) || !change.history.every(isText)) return false;
+  if (change.readiness.validationReady && (!isText(change.validationPlan) || textLength(change.validationPlan.trim()) < 12)) return false;
+  const hasRecordedDecision = marker => change.history.some(entry => entry.includes(marker) && textLength(entry.split(" · ").at(-1).trim()) >= 12);
   const hasIndependentPeerReview = change.history.some(entry => {
     const marker = "Peer review by ";
     const markerIndex = entry.indexOf(marker);
@@ -134,13 +142,13 @@ function validChange(change) {
   if (change.status === "Rejected" && !hasRecordedDecision("Rejected by ")) return false;
   if (readyChangeStatuses.includes(change.status) && change.risk === "High" && (change.readiness.peerReview !== true || !hasIndependentPeerReview)) return false;
   if (change.status === "In progress" || closedChangeStatuses.includes(change.status)) {
-    if (!isText(change.preChangeEvidence) || change.preChangeEvidence.trim().length < 12 || !hasRecordedDecision("Implementation started in approved window")) return false;
+    if (!isText(change.preChangeEvidence) || textLength(change.preChangeEvidence.trim()) < 12 || !hasRecordedDecision("Implementation started in approved window")) return false;
   }
   if (change.status === "Completed" || change.status === "Rollback required") {
     const outcome = change.status === "Completed" ? "Validation passed" : "Validation failed";
-    if (!isText(change.validationEvidence) || change.validationEvidence.trim().length < 12 || !hasRecordedDecision(outcome)) return false;
+    if (!isText(change.validationEvidence) || textLength(change.validationEvidence.trim()) < 12 || !hasRecordedDecision(outcome)) return false;
   }
-  if (change.status === "Rolled back" && (!isText(change.rollbackEvidence) || change.rollbackEvidence.trim().length < 12 || !hasRecordedDecision("Rollback executed"))) return false;
+  if (change.status === "Rolled back" && (!isText(change.rollbackEvidence) || textLength(change.rollbackEvidence.trim()) < 12 || !hasRecordedDecision("Rollback executed"))) return false;
   return true;
 }
 
@@ -172,7 +180,7 @@ export function isDemoState(value) {
   let serialized;
   try { serialized = JSON.stringify(value); } catch { return false; }
   if (new TextEncoder().encode(serialized).length > 1_000_000) return false;
-  if (value.findings.length > 500 || value.tickets.length > 500 || value.maintenance.length > 300 || value.events.length > 100) return false;
+  if (value.findings.length > casebookLimits.findings || value.tickets.length > casebookLimits.tickets || value.maintenance.length > casebookLimits.maintenance || value.events.length > casebookLimits.events) return false;
   const nodeIds = new Set(value.nodes.map(node => node?.id));
   if (value.nodes.length !== Object.keys(nodeSignalFields).length || !Object.keys(nodeSignalFields).every(id => nodeIds.has(id)) || !value.events.every(isText)) return false;
   if (![value.nodes, value.findings, value.tickets, value.maintenance].every(hasUniqueIds)) return false;
@@ -182,10 +190,19 @@ export function isDemoState(value) {
   return value.nodes.every(validNode) && value.findings.every(validFinding) && value.tickets.every(validTicket) && value.maintenance.every(validChange);
 }
 
-export function nextTicketId(tickets) {
-  const max = tickets.reduce((n, t) => Math.max(n, Number(t.id.split("-")[1]) || 1040), 1040);
-  return `HD-${max + 1}`;
+export function nextCaseId(records, prefix, minimum) {
+  let max = BigInt(minimum);
+  for (const record of records) {
+    const id = record?.id;
+    if (typeof id !== "string") continue;
+    const parts = id.split("-");
+    if (parts.length !== 2 || parts[0] !== prefix || !/^[0-9]+$/.test(parts[1])) continue;
+    const sequence = BigInt(parts[1]);
+    if (sequence > max) max = sequence;
+  }
+  return `${prefix}-${max + 1n}`;
 }
+export const nextTicketId = tickets => nextCaseId(tickets, "HD", 1040);
 
 const ticketTransitions = {
   start: ["New", "In progress"],
@@ -205,13 +222,13 @@ export function transitionTicket(ticket, action) {
 export function triageFinding(finding, { owner, responsePlan }) {
   const ownerName = typeof owner === "string" ? owner.trim() : "";
   const plan = typeof responsePlan === "string" ? responsePlan.trim() : "";
-  if (finding.status === "Resolved" || !ownerName || ownerName === "Unassigned" || plan.length < 12) return finding;
+  if (finding.status === "Resolved" || !ownerName || ownerName === "Unassigned" || textLength(plan) < 12) return finding;
   return { ...finding, status: "Investigating", owner: ownerName, responsePlan: plan };
 }
 
 export function resolveFinding(finding, { resolution, verified }) {
   const evidence = typeof resolution === "string" ? resolution.trim() : "";
-  if (finding.status !== "Investigating" || evidence.length < 12 || verified !== "yes") return finding;
+  if (finding.status !== "Investigating" || textLength(evidence) < 12 || verified !== "yes") return finding;
   return { ...finding, status: "Resolved", resolution: evidence };
 }
 
@@ -237,7 +254,7 @@ export function recoveryChecks(node) {
 
 export function recordIncidentRecovery(node, { verification, notes }) {
   const evidence = typeof notes === "string" ? notes.trim() : "";
-  if (!node.investigation || !recoveryChecks(node).includes(verification) || evidence.length < 8) return node;
+  if (!node.investigation || !recoveryChecks(node).includes(verification) || textLength(evidence) < 8) return node;
   const signals = { ...node.signals };
   if (node.id === "app-srv-02") Object.assign(signals, { cpu: 61, memory: 67, queueDepth: 8 });
   if (node.id === "ap-east-14") Object.assign(signals, { missedHeartbeats: 0, poeDraw: 7.2 });
@@ -304,8 +321,8 @@ export function updateTicket(ticket, { status, assignee, note, resolutionVerifie
   const next = transitionTicket(ticket, status);
   const owner = typeof assignee === "string" ? assignee.trim() : "";
   const workNote = typeof note === "string" ? note.trim() : "";
-  if (next === ticket || !owner || owner === "Unassigned" || workNote.length < 8) return ticket;
-  if (status === "resolve" && (workNote.length < 20 || resolutionVerified !== true)) return ticket;
+  if (next === ticket || !owner || owner === "Unassigned" || textLength(workNote) < 8) return ticket;
+  if (status === "resolve" && (textLength(workNote) < 20 || resolutionVerified !== true)) return ticket;
   const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const auditNote = status === "resolve" ? `${workNote} · requester/service recovery confirmed` : workNote;
   const firstResponseMinutes = ticket.status === "New" && status === "start" && ticket.firstResponseMinutes == null
@@ -332,7 +349,8 @@ export function assessTicketSla(ticket, now = Date.now()) {
 export function maintenanceAction(change, action, { peerReviewer, windowOpenConfirmed = false, evidence } = {}) {
   const decisionEvidence = typeof evidence === "string" ? evidence.trim() : "";
   const required = readinessChecks.map(([key]) => key);
-  const ready = required.every(key => change.readiness?.[key] === true);
+  const ready = required.every(key => change.readiness?.[key] === true)
+    && isText(change.validationPlan) && textLength(change.validationPlan.trim()) >= 12;
   const transitions = {
     reject: ["Pending approval", "Rejected"],
     start: ["Approved", "In progress"],
@@ -340,7 +358,7 @@ export function maintenanceAction(change, action, { peerReviewer, windowOpenConf
     failed: ["In progress", "Rollback required"],
     rollback: ["Rollback required", "Rolled back"]
   };
-  if (["approve", "reject", "start", "passed", "failed", "rollback"].includes(action) && decisionEvidence.length < 12) return change;
+  if (["approve", "reject", "start", "passed", "failed", "rollback"].includes(action) && textLength(decisionEvidence) < 12) return change;
   if (action === "start" && windowOpenConfirmed !== true) return change;
   if (action === "approve") {
     const reviewerName = typeof peerReviewer === "string" ? peerReviewer.trim() : "";

@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from scripts.backup_demo_state import backup_database
 from scripts.serve import (
-    DemoStateStore, MAX_SAFE_REVISION, MAX_STATE_BYTES, PortfolioHandler, ROOT, create_server, is_allowed_path,
+    DemoStateStore, MAX_SAFE_REVISION, MAX_STATE_BYTES, MAX_STATE_REQUEST_BYTES, PortfolioHandler, ROOT, create_server, is_allowed_path,
 )
 
 
@@ -181,7 +181,9 @@ class DemoStateApiTests(unittest.TestCase):
             "status": "New", "ageMinutes": 5, "firstResponseMinutes": None, "updates": [],
         }]
         original["maintenance"] = [{
-            "id": "CHG-42", "title": "Synthetic ERP maintenance", "owner": "M. Chen",
+            "id": "CHG-42", "title": "Synthetic ERP maintenance", "system": "Synthetic ERP host",
+            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
+            "rollback": "Restore the recorded snapshot and verify the service.", "owner": "M. Chen",
             "risk": "Medium", "status": "Pending approval",
             "readiness": {"scopeOwner": False, "windowConfirmed": False, "impactAssessed": False,
                           "rollbackDocumented": False, "validationReady": False},
@@ -296,7 +298,10 @@ class DemoStateApiTests(unittest.TestCase):
             "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
         )}
         state["maintenance"] = [{
-            "id": "CHG-501", "title": "Synthetic maintenance review", "owner": "R. Patel",
+            "id": "CHG-501", "title": "Synthetic maintenance review", "system": "Synthetic ERP host",
+            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
+            "rollback": "Restore the recorded snapshot and verify the service.",
+            "validationPlan": "Compare sign-in and response time with the pre-change baseline.", "owner": "R. Patel",
             "risk": "Medium", "status": "Approved", "readiness": ready,
             "history": ["Approved by J. Reviewer · Service impact, checks, and rollback were reviewed"],
         }]
@@ -1003,7 +1008,9 @@ class DemoStateApiTests(unittest.TestCase):
             "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
         )}
         state["maintenance"].append({
-            "id": "CHG-1", "title": "Synthetic patch change", "owner": "R. Patel", "risk": "Low",
+            "id": "CHG-1", "title": "Synthetic patch change", "system": "Synthetic ERP host",
+            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
+            "rollback": "Restore the recorded snapshot and verify the service.", "owner": "R. Patel", "risk": "Low",
             "status": "Pending approval", "readiness": readiness, "history": [], "findingId": "SEC-404",
         })
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
@@ -1078,7 +1085,10 @@ class DemoStateApiTests(unittest.TestCase):
             with self.subTest(status=status):
                 state = self.valid_casebook()
                 change = {
-                    "id": "CHG-500", "title": "Synthetic maintenance validation", "owner": "R. Patel",
+                    "id": "CHG-500", "title": "Synthetic maintenance validation", "system": "Synthetic ERP host",
+                    "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
+                    "rollback": "Restore the recorded snapshot and verify the service.",
+                    "validationPlan": "Compare sign-in and response time with the pre-change baseline.", "owner": "R. Patel",
                     "risk": "Low", "status": status, "readiness": readiness, "history": [required_entry],
                     **extra_fields,
                 }
@@ -1099,7 +1109,10 @@ class DemoStateApiTests(unittest.TestCase):
 
         state = self.valid_casebook()
         state["maintenance"].append({
-            "id": "CHG-501", "title": "Synthetic high-risk maintenance", "owner": "R. Patel",
+            "id": "CHG-501", "title": "Synthetic high-risk maintenance", "system": "Synthetic ERP host",
+            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
+            "rollback": "Restore the recorded snapshot and verify the service.",
+            "validationPlan": "Compare sign-in and response time with the pre-change baseline.", "owner": "R. Patel",
             "risk": "High", "status": "Approved", "readiness": {**ready, "peerReview": True},
             "history": [
                 "Peer review by T. Brown · Independent validation plan and rollback path reviewed",
@@ -1165,17 +1178,119 @@ class DemoStateApiTests(unittest.TestCase):
                 self.assertEqual(status, 422)
                 self.assertIn("error", error)
 
+    def test_api_requires_canonical_utc_ticket_creation_timestamp(self):
+        invalid_timestamps = [
+            "2026-W01-1", "2026-001", "2026-10-19T10:00:00", "2026-02-30T10:00:00.000Z",
+            "0000-01-01T00:00:00.000Z",
+        ]
+        for created_at in invalid_timestamps:
+            with self.subTest(created_at=created_at):
+                state = self.valid_casebook()
+                state["tickets"].append({
+                    "id": "HD-1", "subject": "Synthetic", "requester": "Tester", "assignee": "Unassigned",
+                    "category": "Other", "priority": "Normal", "status": "New", "ageMinutes": 0,
+                    "firstResponseMinutes": None, "createdAt": created_at, "updates": [],
+                })
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        state = self.valid_casebook()
+        state["tickets"].append({
+            "id": "HD-1", "subject": "Synthetic", "requester": "Tester", "assignee": "Unassigned",
+            "category": "Other", "priority": "Normal", "status": "New", "ageMinutes": 0,
+            "firstResponseMinutes": None, "createdAt": "2026-10-19T10:00:00.123Z", "updates": [],
+        })
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 200)
+
+    def test_api_rejects_whitespace_only_required_ticket_and_change_fields(self):
+        ticket = {
+            "id": "HD-1", "subject": "Synthetic request", "requester": "A. Example", "assignee": "Unassigned",
+            "category": "Other", "priority": "Normal", "status": "New", "ageMinutes": 0,
+            "firstResponseMinutes": None, "updates": [],
+        }
+        for field in ("subject", "requester"):
+            state = self.valid_casebook()
+            state["tickets"].append({**ticket, field: "   "})
+            with self.subTest(ticket_field=field):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        readiness = {key: False for key in (
+            "scopeOwner", "windowConfirmed", "impactAssessed", "rollbackDocumented", "validationReady",
+        )}
+        change = {
+            "id": "CHG-1", "title": "Synthetic ERP change", "system": "Application server · ERP",
+            "window": "Planned · 22:00–22:30", "impact": "Finance users may see a brief restart delay.",
+            "rollback": "Restore the recorded snapshot and verify the service.", "owner": "R. Patel",
+            "risk": "Medium", "status": "Pending approval", "readiness": readiness, "history": [],
+        }
+        for field in ("title", "system", "window", "impact", "rollback"):
+            state = self.valid_casebook()
+            state["maintenance"].append({**change, field: "   "})
+            with self.subTest(change_field=field):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        state = self.valid_casebook()
+        state["maintenance"].append({
+            **change,
+            "readiness": {**readiness, "validationReady": True},
+            "validationPlan": "   ",
+        })
+        self.assertEqual(self.request("/api/state", "PUT", {"revision": 0, "state": state})[0], 422)
+
+        accepted = self.valid_casebook()
+        accepted["maintenance"].append({
+            **change,
+            "readiness": {**readiness, "validationReady": True},
+            "validationPlan": "Verify ERP sign-in, response time, and queue depth against baseline.",
+        })
+        status, result = self.request("/api/state", "PUT", {"revision": 0, "state": accepted})
+        self.assertEqual(status, 200)
+        self.assertEqual(result["state"]["maintenance"][0]["readiness"]["validationReady"], True)
+
+    def test_api_evidence_minimums_count_unicode_codepoints(self):
+        state = self.valid_casebook()
+        state["nodes"][1]["investigation"] = {
+            "owner": "R. Patel", "cause": "CPU pressure", "action": "Scale workers", "status": "Resolved",
+            "verification": "ERP login passed; latency and queue depth returned below threshold",
+            "notes": "😀" * 4,
+        }
+        self.assertEqual(
+            self.request("/api/state", "PUT", {"revision": 0, "state": state})[0],
+            422,
+            "four emoji are four code points and do not satisfy the eight-character note requirement",
+        )
+
     def test_api_rejects_oversized_state(self):
         request = urllib.request.Request(
             self.base_url + "/api/state",
             data=b"{}",
             method="PUT",
-            headers={"Content-Type": "application/json", "Content-Length": "1000001"},
+            headers={"Content-Type": "application/json", "Content-Length": str(MAX_STATE_REQUEST_BYTES + 1)},
         )
         with self.assertRaises(urllib.error.HTTPError) as error:
             urllib.request.urlopen(request, timeout=2)
         self.assertEqual(error.exception.code, 413)
         error.exception.close()
+
+    def test_api_accepts_maximum_size_state_with_request_envelope(self):
+        state = self.valid_casebook()
+        state["events"] = [""]
+        compact_size = len(json.dumps(state, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+        state["events"][0] = "x" * (MAX_STATE_BYTES - compact_size)
+        self.assertEqual(
+            len(json.dumps(state, separators=(",", ":"), ensure_ascii=False).encode("utf-8")),
+            MAX_STATE_BYTES,
+        )
+        request_body = json.dumps({"revision": 0, "state": state}).encode("utf-8")
+        self.assertGreater(len(request_body), MAX_STATE_BYTES, "the JSON request envelope adds bytes around the casebook")
+        self.assertLessEqual(len(request_body), MAX_STATE_REQUEST_BYTES)
+        request = urllib.request.Request(
+            self.base_url + "/api/state", data=request_body, method="PUT",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            saved = json.loads(response.read())
+        self.assertEqual(saved["revision"], 1)
+        self.assertEqual(len(json.dumps(saved["state"], separators=(",", ":"), ensure_ascii=False).encode("utf-8")), MAX_STATE_BYTES)
 
     def test_api_rejects_excessive_json_nesting_cleanly(self):
         deeply_nested = b'{"revision":0,"state":' + b"[" * 12000 + b"0" + b"]" * 12000 + b"}"

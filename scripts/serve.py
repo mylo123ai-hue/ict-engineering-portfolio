@@ -17,8 +17,10 @@ ROOT = Path(__file__).resolve().parent.parent
 NOT_FOUND = ROOT / "index.html" / "__preview_not_found__"
 ALLOWED_ROOTS = {"index.html", "src", "docs"}
 MAX_STATE_BYTES = 1_000_000
+MAX_STATE_REQUEST_BYTES = MAX_STATE_BYTES + 1_024
 MAX_RESTORE_BYTES = 4_096
 HISTORY_LIMIT = 25
+CASEBOOK_LIMITS = {"nodes": 32, "findings": 500, "tickets": 500, "maintenance": 300, "events": 100}
 # Revisions cross the API boundary as JavaScript numbers and must remain exact.
 MAX_SAFE_REVISION = (1 << 53) - 1
 MAX_REVISION = MAX_SAFE_REVISION - 1
@@ -236,7 +238,7 @@ def valid_finding(finding):
 def valid_ticket(ticket):
     if not is_record(ticket) or not isinstance(ticket.get("id"), str) or not re.fullmatch(r"HD-[0-9]+", ticket["id"]):
         return False
-    if not all(is_text(ticket.get(key)) for key in ("subject", "requester", "assignee")):
+    if not all(is_text(ticket.get(key)) and ticket[key].strip() for key in ("subject", "requester")) or not is_text(ticket.get("assignee")):
         return False
     if not is_one_of(ticket.get("category"), {"Access & accounts", "Hardware", "Network", "Software", "Other"}):
         return False
@@ -248,10 +250,14 @@ def valid_ticket(ticket):
         return False
     if "createdAt" in ticket:
         created_at = ticket["createdAt"]
-        if not is_text(created_at):
+        if not is_text(created_at) or not re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z", created_at,
+        ):
             return False
         try:
-            datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+            timestamp = datetime.fromisoformat(created_at[:-1] + "+00:00")
+            if timestamp.isoformat(timespec="milliseconds").replace("+00:00", "Z") != created_at:
+                return False
         except ValueError:
             return False
     if not isinstance(ticket.get("updates"), list) or not all(is_text(update) for update in ticket["updates"]):
@@ -272,7 +278,11 @@ def valid_ticket(ticket):
 def valid_change(change):
     if not is_record(change) or not isinstance(change.get("id"), str) or not re.fullmatch(r"CHG-[0-9]+", change["id"]):
         return False
-    if not all(is_text(change.get(key)) for key in ("title", "owner")) or not change["owner"].strip() or change["owner"] == "Unassigned":
+    if (
+        not all(is_text(change.get(key)) and change[key].strip() for key in ("title", "system", "window", "owner"))
+        or change["owner"] == "Unassigned"
+        or not all(is_text(change.get(key)) and len(change[key].strip()) >= 12 for key in ("impact", "rollback"))
+    ):
         return False
     statuses = {"Pending approval", "Rejected", "Approved", "In progress", "Completed", "Rollback required", "Rolled back"}
     if not is_one_of(change.get("risk"), {"Low", "Medium", "High"}) or not is_one_of(change.get("status"), statuses):
@@ -280,6 +290,10 @@ def valid_change(change):
     readiness = change.get("readiness")
     history = change.get("history")
     if not is_record(readiness) or not READINESS_KEYS.issubset(readiness) or not all(isinstance(readiness[key], bool) for key in READINESS_KEYS):
+        return False
+    if readiness["validationReady"] and (
+        not is_text(change.get("validationPlan")) or len(change["validationPlan"].strip()) < 12
+    ):
         return False
     if not isinstance(history, list) or not all(is_text(entry) for entry in history):
         return False
@@ -344,8 +358,7 @@ def valid_state_shape(state):
     """Enforce core casebook domain invariants server-side."""
     if not isinstance(state, dict) or set(state) != {"nodes", "findings", "tickets", "maintenance", "events"}:
         return False
-    limits = {"nodes": 32, "findings": 500, "tickets": 500, "maintenance": 300, "events": 100}
-    if not all(isinstance(state[key], list) and len(state[key]) <= limit for key, limit in limits.items()):
+    if not all(isinstance(state[key], list) and len(state[key]) <= limit for key, limit in CASEBOOK_LIMITS.items()):
         return False
     if not all(is_text(event) for event in state["events"]):
         return False
@@ -725,9 +738,9 @@ class PortfolioHandler(SimpleHTTPRequestHandler):
             self.close_connection = True
             self._send_json(400, {"error": "Invalid content length"})
             return
-        if length <= 0 or length > MAX_STATE_BYTES:
+        if length <= 0 or length > MAX_STATE_REQUEST_BYTES:
             self.close_connection = True
-            self._send_json(413 if length > MAX_STATE_BYTES else 400, {"error": "Invalid state payload size"})
+            self._send_json(413 if length > MAX_STATE_REQUEST_BYTES else 400, {"error": "Invalid state request size"})
             return
         try:
             request = parse_json(self.rfile.read(length))

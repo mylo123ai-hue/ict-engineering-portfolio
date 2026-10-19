@@ -2755,6 +2755,21 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 .readiness-check input:disabled {
   cursor:default
 }
+.validation-plan-required {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:8px 0;
+  border-top:1px solid #f0f2f6
+}
+.validation-plan-required p {
+  margin:0;
+  max-width:270px;
+  color:#68778d;
+  font-size:8px;
+  line-height:1.45
+}
 .risk-check {
   color:#a27231
 }
@@ -3173,6 +3188,9 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,te
 .readiness-check {
   font-size:9px;
   color:#5b6980
+}
+.validation-plan-required p {
+  font-size:9px
 }
 .readiness-heading strong {
   font-size:9px

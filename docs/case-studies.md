@@ -56,7 +56,7 @@ These are fictional scenarios built from synthetic data. The UI records simulate
 
 **Investigation.** Review ownership, window, impact, rollback and validation readiness. The approval gate requires all five readiness checks. High-risk changes also require an independent peer review.
 
-**Decision and trade-off.** The operator must complete missing validation planning before approval. Starting implementation also requires confirmation that the approved window is open and a pre-change checkpoint; the confirmation is written to the decision log. A failed validation routes the change to rollback-required; recorded recovery evidence then closes the path as rolled back.
+**Decision and trade-off.** The operator records measurable post-change checks and an acceptance threshold before marking validation ready; the UI keeps that readiness gate disabled until the plan exists. Starting implementation also requires confirmation that the approved window is open and a pre-change checkpoint; the confirmation is written to the decision log. A failed validation routes the change to rollback-required; recorded recovery evidence then closes the path as rolled back.
 
 **Verification.** Tests cover readiness gates, independent peer review and pass/rollback transitions, including a start attempt without window confirmation. Browser verification exercised the disabled approval gate, readiness completion, window confirmation, pre-change evidence, failed validation and rollback.
 

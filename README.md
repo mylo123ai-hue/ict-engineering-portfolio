@@ -79,7 +79,7 @@ flowchart LR
 
 The checks below were run locally; there is no GitHub Actions pipeline configured for this repository.
 
-- `npm test` — **17 JavaScript model tests and 61 Python API/server tests** pass.
+- `npm test` — **17 JavaScript model tests and 65 Python API/server tests** pass.
 - `npm run check` — JavaScript syntax checks pass; `python3 -m py_compile scripts/serve.py scripts/backup_demo_state.py` passes.
 - **Chromium workflow check** — exercised an infrastructure investigation and recovery, security triage and evidence-backed resolution, helpdesk ticket creation and first response, network diagnosis with ticket handoff, and the maintenance approval-to-rollback path. Each saved state was read back from the temporary SQLite API.
 - **Responsive browser check** — opened all six routes at 320, 390, 768, and 1440 CSS px (24 route/width combinations); none overflowed. A further 18 checks at 320, 390, and 1440 px found one heading per route and no visible controls without an accessible name. Keyboarding to the skip link focused the main content. This is a focused check, not a formal accessibility audit; prior route and interaction evidence is in [verification.md](docs/verification.md).

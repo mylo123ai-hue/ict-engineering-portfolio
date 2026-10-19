@@ -1,5 +1,5 @@
 import {
-  cloneSeed, migrateDemoState, isDemoState, nextTicketId, transitionTicket, triageFinding, resolveFinding,
+  cloneSeed, migrateDemoState, isDemoState, casebookLimits, textLength, nextCaseId, nextTicketId, transitionTicket, triageFinding, resolveFinding,
   simulateIncident, recordIncidentInvestigation, recordIncidentRecovery,
   diagnoseNetwork, updateTicket, assessTicketSla, maintenanceAction, readinessChecks, recoveryChecks
 } from "./model.js";
@@ -53,6 +53,11 @@ const statusClass = value => String(value).toLowerCase().replace(/[^a-z]+/g, "-"
 const title = (heading, description, actions = "") => `<div class="page-heading"><div><div class="eyebrow">OPERATIONS CENTER <span> / </span> ${esc(heading.toUpperCase())}</div><h1 tabindex="-1">${esc(heading)}</h1><p>${esc(description)}</p></div><div class="heading-actions">${actions}</div></div>`;
 const button = (label, action, cls = "button button-primary", extra = "") => `<button class="${cls}" data-action="${action}" ${extra}>${label}</button>`;
 const card = (inner, cls = "card") => `<section class="${cls}">${inner}</section>`;
+function newRecordAction(label, action, count, limit, collectionLabel) {
+  if (count < limit) return `<button class="button button-primary" type="button" data-action="${action}">＋ &nbsp;${label}</button>`;
+  const messageId = `casebook-capacity-${action}`;
+  return `<span id="${messageId}" class="muted small" role="status">${limit} ${collectionLabel} maximum reached. Reset the demo to start a new casebook.</span><button class="button button-primary" type="button" data-action="${action}" disabled aria-label="${esc(label)} unavailable; demo limit reached" aria-describedby="${messageId}">＋ &nbsp;${label}</button>`;
+}
 const nowLabel = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 function save() {
@@ -317,7 +322,7 @@ function ticketSla(ticket) {
 function renderHelpdesk() {
   const overdue = state.tickets.filter(ticket => assessTicketSla(ticket).state === "Breached").length;
   const slaSummary = overdue ? `${overdue} response target${overdue === 1 ? "" : "s"} breached` : "No first-response breaches";
-  return `${title("IT helpdesk", "Work the request from intake through an owned update and a clear resolution record.", `<button class="button button-primary" data-action="open-ticket-form">＋ &nbsp;New ticket</button>`)}
+  return `${title("IT helpdesk", "Work the request from intake through an owned update and a clear resolution record.", newRecordAction("New ticket", "open-ticket-form", state.tickets.length, casebookLimits.tickets, "tickets"))}
   ${engineeringBrief("helpdesk")}
   <div class="ticket-metrics"><div class="ticket-metric"><span class="metric-symbol blue">▤</span><div><small>Open tickets</small><strong>${state.tickets.filter(t => t.status !== "Resolved").length}</strong></div><span class="metric-trend">All queues</span></div><div class="ticket-metric"><span class="metric-symbol coral">◷</span><div><small>High priority</small><strong>${state.tickets.filter(t => t.priority === "High" && t.status !== "Resolved").length}</strong></div><span class="metric-trend">Needs attention</span></div><div class="ticket-metric"><span class="metric-symbol mint">✓</span><div><small>Resolved</small><strong>${state.tickets.filter(t => t.status === "Resolved").length}</strong></div><span class="metric-trend">Recorded</span></div><div class="ticket-metric sla-summary"><span class="metric-symbol violet">◎</span><div><small>First response SLA</small><strong>${esc(slaSummary)}</strong></div></div></div>
   ${card(`<div class="table-header"><div><h3>Service queue <span class="count-pill">${state.tickets.length}</span></h3><p>First-response example · High 15 min · Normal / low 30 min</p></div><div class="table-controls"><label class="sr-only" for="ticketFilter">Filter tickets by status</label><select id="ticketFilter" class="select-control"><option value="Active">Active tickets</option><option value="All">All tickets</option><option>New</option><option>In progress</option><option>Waiting</option><option>Resolved</option></select><button class="button button-quiet button-small" data-action="ticket-refresh" aria-label="Refresh ticket queue">↻</button></div></div><div class="table-wrap" role="region" tabindex="0" aria-label="Service queue table" aria-describedby="service-table-scroll-help"><p id="service-table-scroll-help" class="sr-only">Focus this region and use the left and right arrow keys to view all columns.</p><table><thead><tr><th>TICKET / REQUEST</th><th>REQUESTER</th><th>PRIORITY</th><th>FIRST RESPONSE</th><th>ASSIGNEE</th><th>STATUS</th><th></th></tr></thead><tbody>${state.tickets.map(ticket => `<tr data-ticket-status="${ticket.status}" data-ticket-id="${esc(ticket.id)}"><td><div class="ticket-subject"><small>${esc(ticket.id)} · ${esc(ticket.category)}${ticket.relatedAssetId ? ` · ${esc(ticket.relatedAssetId)}` : ""}</small><strong>${esc(ticket.subject)}</strong></div></td><td>${esc(ticket.requester)}</td><td><span class="priority ${statusClass(ticket.priority)}"><i></i>${ticket.priority}</span></td><td>${ticketSla(ticket)}</td><td>${esc(ticket.assignee)}</td><td><span class="status-pill ${statusClass(ticket.status)}"><i></i>${ticket.status}</span></td><td><button class="button button-quiet button-small" data-action="ticket-review" data-id="${ticket.id}" aria-label="Review ${esc(ticket.id)}">Review</button></td></tr>`).join("")}<tr id="ticketFilterEmpty" hidden><td colspan="7"><div class="empty-state compact" role="status">No tickets match this filter.</div></td></tr></tbody></table></div><div class="table-bottom"><span>Training targets only: High 15 min · Normal/low 30 min · not a service commitment</span><span>Ticket updates are saved to the local casebook</span></div>`)}
@@ -344,15 +349,21 @@ function renderDiagnosticResults() {
   return card(`<div class="diagnostic-result-head"><div><span class="result-icon">⌁</span><div><h3>Isolation sequence complete</h3><p>${esc(result.site)} · ${esc(result.symptom)} · ${esc(result.scope)}</p></div></div><button class="text-action" data-action="diagnostic-clear">Clear</button></div><div class="result-summary"><span class="result-alert">!</span><div><strong>Likely fault domain: ${esc(result.likelyCause)}</strong><p>${esc(result.confidence)}</p></div></div><div class="check-list">${result.checks.map((check, i) => `<div class="check-row"><span class="check-index">0${i + 1}</span><span>${esc(check[0])}</span><strong class="check-${statusClass(check[2])}"><i>${check[2] === "pass" ? "✓" : check[2] === "blocked" ? "–" : "!"}</i>${esc(check[1])}</strong></div>`).join("")}</div><div class="next-test"><b>Next discriminating test</b><p>${esc(result.nextAction)}</p></div><button class="button button-secondary full-width" data-action="diagnostic-ticket">Create handoff ticket &nbsp;→</button>`);
 }
 function readinessComplete(change) {
-  return readinessChecks.every(([key]) => change.readiness?.[key] === true) && (change.risk !== "High" || change.readiness?.peerReview === true);
+  const planRecorded = typeof change.validationPlan === "string" && textLength(change.validationPlan.trim()) >= 12;
+  return planRecorded && readinessChecks.every(([key]) => change.readiness?.[key] === true) && (change.risk !== "High" || change.readiness?.peerReview === true);
 }
 function renderMaintenance() {
-  return `${title("Maintenance & rollback", "Assess readiness before approval, then record implementation and validation outcomes.", `<button class="button button-primary" data-action="new-change">＋ &nbsp;New change request</button>`)}
+  return `${title("Maintenance & rollback", "Assess readiness before approval, then record implementation and validation outcomes.", newRecordAction("New change request", "new-change", state.maintenance.length, casebookLimits.maintenance, "change requests"))}
   ${engineeringBrief("maintenance")}
   <div class="change-banner"><div class="change-banner-icon">◷</div><div><strong>Approval is a risk decision.</strong><p>Every change needs an owner, agreed window, impact check, rollback path, and post-change validation plan.</p></div><span>SYNTHETIC CHANGE CONTROL</span></div>
   <div class="change-stats"><div><span>Pending review</span><strong>${state.maintenance.filter(m => m.status === "Pending approval").length}</strong><i class="stat-pending"></i></div><div><span>Approved / in progress</span><strong>${state.maintenance.filter(m => ["Approved", "In progress"].includes(m.status)).length}</strong><i class="stat-approved"></i></div><div><span>Completed / rollback</span><strong>${state.maintenance.filter(m => ["Completed", "Rolled back"].includes(m.status)).length}</strong><i class="stat-complete"></i></div></div>
   <div class="change-columns"><div>${card(`<div class="table-header"><div><h3>Change requests <span class="count-pill">${state.maintenance.length}</span></h3><p>Readiness is persisted per request and gates approval</p></div><button class="button button-quiet button-small" data-action="maintenance-refresh">↻ Refresh</button></div><div class="change-list">${state.maintenance.map(change => {
-    const checks = readinessChecks.map(([key, label]) => `<label class="readiness-check"><input type="checkbox" data-action="change-check" data-id="${change.id}" data-key="${key}" ${change.readiness?.[key] ? "checked" : ""} ${change.status !== "Pending approval" ? "disabled" : ""}><span>${esc(label)}</span></label>`).join("");
+    const hasValidationPlan = typeof change.validationPlan === "string" && textLength(change.validationPlan.trim()) >= 12;
+    const checks = readinessChecks.map(([key, label]) => {
+      const planRequired = key === "validationReady" && !hasValidationPlan;
+      return `<label class="readiness-check"><input type="checkbox" data-action="change-check" data-id="${change.id}" data-key="${key}" ${change.readiness?.[key] ? "checked" : ""} ${change.status !== "Pending approval" || planRequired ? "disabled" : ""}><span>${esc(label)}${planRequired ? " · plan required" : ""}</span></label>`;
+    }).join("");
+    const planAction = change.status === "Pending approval" && !hasValidationPlan ? `<div class="validation-plan-required"><p>Record the checks and acceptance criteria before marking validation ready.</p>${button("Record validation plan", "change-plan", "button button-quiet button-small", `data-id="${change.id}"`)}</div>` : "";
     const peerReview = change.risk === "High" ? `<label class="readiness-check risk-check"><input type="checkbox" data-action="change-check" data-id="${change.id}" data-key="peerReview" ${change.readiness?.peerReview ? "checked" : ""} ${change.status !== "Pending approval" ? "disabled" : ""}><span>Independent peer review recorded (high-risk gate)</span></label>` : "";
     let actions = "";
     if (change.status === "Pending approval") actions = `${button("Approve after review", "change-approve", "button button-primary button-small", `data-id="${change.id}" ${readinessComplete(change) ? "" : "disabled"}`)} ${button("Reject with reason", "change-reject", "button button-secondary button-small", `data-id="${change.id}"`)}`;
@@ -360,7 +371,7 @@ function renderMaintenance() {
     else if (change.status === "In progress") actions = button("Record validation outcome", "change-validation", "button button-secondary button-small", `data-id="${change.id}"`);
     else if (change.status === "Rollback required") actions = button("Execute documented rollback", "change-rollback", "button button-danger button-small", `data-id="${change.id}"`);
     else actions = `<span class="muted small">${change.status === "Rolled back" ? "Rollback recorded · service checks required" : change.status === "Completed" ? "Validation passed · change closed" : "Request closed"}</span>`;
-    const readiness = change.status === "Pending approval" ? `<div class="readiness-panel"><div class="readiness-heading"><strong>Approval readiness</strong><span>${readinessChecks.filter(([key]) => change.readiness?.[key]).length}/${readinessChecks.length} complete${change.risk === "High" ? ` · ${change.readiness?.peerReview ? "peer review set" : "peer review required"}` : ""}</span></div>${checks}${peerReview}</div>` : "";
+    const readiness = change.status === "Pending approval" ? `<div class="readiness-panel"><div class="readiness-heading"><strong>Approval readiness</strong><span>${readinessChecks.filter(([key]) => change.readiness?.[key]).length}/${readinessChecks.length} complete${change.risk === "High" ? ` · ${change.readiness?.peerReview ? "peer review set" : "peer review required"}` : ""}</span></div>${planAction}${checks}${peerReview}</div>` : "";
     return `<article class="change-item"><div class="change-item-top"><span class="change-id">${esc(change.id)} · ${esc(change.owner)}</span><span class="status-pill ${statusClass(change.status)}"><i></i>${esc(change.status)}</span></div><h3>${esc(change.title)}</h3><div class="change-meta"><span>▣ ${esc(change.system)}</span><span>◷ ${esc(change.window)}</span><span>Risk · <b class="risk-${statusClass(change.risk)}">${esc(change.risk)}</b></span></div>${change.findingId ? `<div class="change-impact"><b>Linked finding</b><a href="#security">${esc(change.findingId)} · View finding →</a></div>` : ""}${change.impact ? `<div class="change-impact"><b>Impact assessment</b>${esc(change.impact)}</div>` : ""}${change.validationPlan ? `<div class="change-impact"><b>Post-change validation</b>${esc(change.validationPlan)}</div>` : ""}<div class="rollback-box"><span>↶</span><div><strong>Rollback plan</strong><p>${esc(change.rollback)}</p></div></div>${readiness}<div class="change-actions">${actions}</div>${change.history?.length ? `<div class="change-history"><b>Decision log</b>${change.history.map(entry => `<span>${esc(entry)}</span>`).join("")}</div>` : ""}</article>`;
   }).join("") || `<div class="empty-state"><span>◷</span><strong>No change requests yet</strong><p>Create a request to start a review workflow.</p></div>`}</div>`)}
   </div><aside>${card(`<div class="card-header"><div><h3>Decision standard</h3><p>Evidence expected at each gate</p></div><span class="checklist-mark">✓</span></div><div class="decision-standard"><div><b>1 · Review</b><span>Scope, impact, window, owner, and rollback.</span></div><div><b>2 · Implement</b><span>Start only within the approved window.</span></div><div><b>3 · Validate</b><span>Record a health check and user-impact result.</span></div><div><b>4 · Recover</b><span>Failed checks require documented rollback.</span></div></div>`)}${card(`<div class="approval-note"><span>ⓘ</span><p><strong>Simulation only.</strong> Approval, validation, and rollback write a local SQLite audit trail. They do not trigger infrastructure changes.</p></div>`)}</aside></div>`;
@@ -460,7 +471,9 @@ function openIncidentInvestigation(node) {
   const ownerOptions = ["R. Patel", "T. Brown", "Jamie Diaz", "Security operations"];
   openDialog({ eyebrow: "INCIDENT TRIAGE · SYNTHETIC", heading: `Investigate ${node.id}`, description: `${node.name}. Signal: ${signalSummary(node)} · ${node.latency === null ? "no heartbeat" : `${node.latency} ms response`}. Assign an owner, record a likely cause, and choose a testable action.`, submit: "Record investigation", content: `<label>Incident owner<select name="owner" required><option value="">Assign an owner</option>${ownerOptions.map(owner => `<option ${owner === defaults.owner ? "selected" : ""}>${esc(owner)}</option>`).join("")}</select></label><label>Likely cause<select name="cause" required>${causeOptions.map(cause => `<option ${cause === defaults.cause ? "selected" : ""}>${esc(cause)}</option>`).join("")}</select></label><label>First action / discriminating check<input name="action" required value="${esc(defaults.action)}" maxlength="140"></label><p class="dialog-hint">A hypothesis is not a confirmed cause. Keep the alert open until a post-action check passes.</p>`, onSubmit: form => {
     const index = state.nodes.findIndex(item => item.id === node.id);
-    state.nodes[index] = recordIncidentInvestigation(node, form);
+    const updated = recordIncidentInvestigation(node, form);
+    if (updated === node) { toast("Add a non-empty investigation owner, likely cause, and testable first action."); return false; }
+    state.nodes[index] = updated;
     addEvent(`${node.id} assigned to ${form.owner} · ${form.cause}`);
     save(); render(); toast("Investigation recorded; verify recovery before closing the alert.");
   } });
@@ -478,7 +491,9 @@ function openIncidentRecovery(node) {
 function openFindingTriage(finding) {
   openDialog({ eyebrow: `SECURITY TRIAGE · ${finding.id}`, heading: "Assign the remediation", description: `${finding.severity} · CVSS ${finding.cvss} · ${finding.exposure}. ${finding.impact}.`, submit: "Save triage plan", content: `<label>Owner<select name="owner" required><option value="">Assign an engineer</option><option>R. Patel</option><option>T. Brown</option><option>Jamie Diaz</option><option>Security operations</option></select></label><label>Response plan<textarea name="responsePlan" rows="3" required minlength="12">${esc(finding.recommendedAction)}</textarea></label><p class="dialog-hint">Choose a plan that can be verified. Prioritize by impact and exposure as well as the severity score.</p>`, onSubmit: form => {
     const index = state.findings.findIndex(item => item.id === finding.id);
-    state.findings[index] = triageFinding(finding, form);
+    const updated = triageFinding(finding, form);
+    if (updated === finding) { toast("Assign an owner and enter at least 12 non-space characters for the response plan."); return false; }
+    state.findings[index] = updated;
     addEvent(`${finding.id} triaged · owner ${form.owner}`);
     save(); render(); toast("Finding assigned with a response plan.");
   } });
@@ -506,8 +521,11 @@ function openTicketReview(ticket) {
   } });
 }
 function showTicketForm(prefill = {}) {
+  if (state.tickets.length >= casebookLimits.tickets) { toast(`Demo ticket limit reached (${casebookLimits.tickets}). Reset the demo to start a new casebook.`); return; }
   const values = typeof prefill === "string" ? { subject: prefill } : prefill;
   openDialog({ eyebrow: "SERVICE DESK · SYNTHETIC", heading: "Create a ticket", description: "Capture impact, assign ownership, and set a response priority.", submit: "Create ticket", content: `<label>Request summary<input name="subject" required maxlength="90" value="${esc(values.subject || "")}" placeholder="What does the requester need help with?"></label><div class="form-row"><label>Requester<input name="requester" required value="${esc(values.requester || "")}" placeholder="Name"></label><label>Category<select name="category">${["Access & accounts", "Hardware", "Network", "Software", "Other"].map(x => `<option ${values.category === x ? "selected" : ""}>${x}</option>`).join("")}</select></label></div><div class="form-row"><label>Priority<select name="priority">${["Normal", "High", "Low"].map(x => `<option ${values.priority === x ? "selected" : ""}>${x}</option>`).join("")}</select></label><label>Assign to<select name="assignee">${["Unassigned", "R. Patel", "T. Brown", "Jamie Diaz"].map(x => `<option ${values.assignee === x ? "selected" : ""}>${x}</option>`).join("")}</select></label></div><label>Impact and troubleshooting details<textarea name="details" rows="3" required minlength="8" placeholder="Who is affected, when did it start, and what has been checked?">${esc(values.details || "")}</textarea></label>`, onSubmit: form => {
+    if (!form.subject.trim() || !form.requester.trim() || textLength(form.details.trim()) < 8) { toast("Add a non-empty subject and requester, plus at least eight characters of impact or troubleshooting detail."); return false; }
+    if (state.tickets.length >= casebookLimits.tickets) { toast("The ticket limit was reached while this form was open. No ticket was created."); return false; }
     const ticket = { id: nextTicketId(state.tickets), subject: form.subject.trim(), requester: form.requester.trim(), category: form.category, priority: form.priority, status: "New", assignee: form.assignee, created: nowLabel(), createdAt: new Date().toISOString(), ageMinutes: 0, firstResponseMinutes: null, details: form.details.trim(), relatedAssetId: values.relatedAssetId || "", updates: ["Ticket created · awaiting first response"] };
     state.tickets.unshift(ticket);
     addEvent(`${ticket.id} created · ${ticket.subject}`);
@@ -520,6 +538,7 @@ function openChangeDecision(change, decision) {
   const peerReviewer = !reject && change.risk === "High" ? `<label>Independent peer reviewer<select name="peerReviewer" required><option value="">Choose reviewer</option>${reviewerOptions.map(name => `<option>${esc(name)}</option>`).join("")}</select></label>` : "";
   openDialog({ eyebrow: `CHANGE CONTROL · ${change.id}`, heading: reject ? "Reject this request" : "Approve after readiness review", description: `${change.title} · ${change.risk} risk · ${change.window}. ${reject ? "Record the reason so the requester can revise the plan." : "Confirm why the plan is acceptable and its control evidence."}`, submit: reject ? "Record rejection" : "Record approval", content: `${peerReviewer}<label>${reject ? "Rejection reason" : "Approval rationale"}<textarea name="note" rows="3" required minlength="12" placeholder="Summarize impact, controls, and decision basis."></textarea></label>`, onSubmit: form => {
     const index = state.maintenance.findIndex(item => item.id === change.id);
+    if (textLength(form.note.trim()) < 12) { toast("Record at least 12 non-space characters explaining the decision."); return false; }
     if (!reject && change.risk === "High" && (!form.peerReviewer || form.peerReviewer === change.owner)) { toast("High-risk approval needs an independent reviewer who is not the change owner."); return false; }
     const updated = maintenanceAction(change, decision, { peerReviewer: form.peerReviewer, evidence: form.note });
     if (updated === change) { toast("Approval is locked until all required readiness checks are complete."); return false; }
@@ -530,9 +549,23 @@ function openChangeDecision(change, decision) {
     save(); render(); toast(`Change ${reject ? "rejection" : "approval"} recorded.`);
   } });
 }
+function openChangeValidationPlan(change) {
+  if (change.status !== "Pending approval") return;
+  openDialog({ eyebrow: `CHANGE CONTROL · ${change.id}`, heading: "Record validation plan", description: `Before approval, define the post-change checks for ${change.title}. Include measurable service signals and an acceptance threshold.`, submit: "Save validation plan", content: `<label>Post-change validation plan<textarea name="validationPlan" rows="4" required minlength="12" maxlength="600" placeholder="For example: confirm ERP sign-in, check host response time and queue depth against baseline, then obtain service-owner confirmation.">${esc(change.validationPlan || "")}</textarea></label><p class="dialog-hint">The plan is saved to the local synthetic audit history. Recording it completes the validation readiness gate; it does not run checks.</p>`, onSubmit: form => {
+    const plan = form.validationPlan.trim();
+    if (textLength(plan) < 12) { toast("Record at least 12 characters describing a measurable validation plan."); return false; }
+    const index = state.maintenance.findIndex(item => item.id === change.id);
+    if (index < 0 || state.maintenance[index].status !== "Pending approval") return false;
+    const updated = { ...state.maintenance[index], validationPlan: plan, readiness: { ...state.maintenance[index].readiness, validationReady: true }, history: [...(state.maintenance[index].history || []), `${nowLabel()} · Validation plan recorded · ${plan}`] };
+    state.maintenance[index] = updated;
+    addEvent(`${change.id} validation plan recorded`);
+    save(); render(); toast("Validation plan saved; the readiness gate is complete.");
+  } });
+}
 function openValidationDecision(change) {
   openDialog({ eyebrow: `CHANGE VALIDATION · ${change.id}`, heading: "Record post-change checks", description: `Implemented: ${change.title}. Record the measured outcome. A failed check routes the request to rollback.`, submit: "Record validation result", content: `<label>Validation outcome<select name="outcome" required><option value="">Choose result</option><option value="passed">Passed · service health within expected range</option><option value="failed">Failed · service impact or threshold breach remains</option></select></label><label>Evidence / observation<textarea name="note" rows="3" required minlength="12" placeholder="Health check result, user impact, and comparison with baseline."></textarea></label>`, onSubmit: form => {
     const index = state.maintenance.findIndex(item => item.id === change.id);
+    if (textLength(form.note.trim()) < 12) { toast("Record at least 12 non-space characters describing the validation evidence."); return false; }
     const action = form.outcome;
     const updated = maintenanceAction(change, action, { evidence: form.note });
     if (updated === change) { toast("This request is not ready for a validation outcome."); return false; }
@@ -546,6 +579,7 @@ function openValidationDecision(change) {
 function openChangeStart(change) {
   openDialog({ eyebrow: `IMPLEMENTATION WINDOW · ${change.id}`, heading: "Confirm the maintenance window", description: `${change.title} · approved window: ${change.window}. This simulation records an implementation start only after the operator confirms the window is open and stakeholders are ready.`, submit: "Confirm window and start", content: `<label class="confirm-check"><input type="checkbox" name="windowOpen" value="yes" required><span>I confirm the approved maintenance window is open and required notifications are complete.</span></label><label>Pre-change checkpoint<textarea name="note" rows="3" required minlength="12" placeholder="Record the last pre-change health check and service baseline."></textarea></label>`, onSubmit: form => {
     const index = state.maintenance.findIndex(item => item.id === change.id);
+    if (textLength(form.note.trim()) < 12) { toast("Record at least 12 non-space characters for the pre-change checkpoint."); return false; }
     const updated = maintenanceAction(change, "start", { windowOpenConfirmed: form.windowOpen === "yes", evidence: form.note });
     if (updated === change) { toast("Confirm the approved window before starting implementation."); return false; }
     updated.history = [...(change.history || []), `${nowLabel()} · Implementation started in approved window · ${form.note.trim()}`];
@@ -558,8 +592,9 @@ function openChangeStart(change) {
 function openRollback(change) {
   openDialog({ eyebrow: `RECOVERY · ${change.id}`, heading: "Execute documented rollback", description: `Rollback plan: ${change.rollback}. Record the recovery action and service check.`, submit: "Record rollback", content: `<label>Rollback evidence<textarea name="note" rows="3" required minlength="12" placeholder="What was reverted and which service check passed?">${esc(change.rollback)}</textarea></label>`, onSubmit: form => {
     const index = state.maintenance.findIndex(item => item.id === change.id);
+    if (textLength(form.note.trim()) < 12) { toast("Record at least 12 non-space characters for the rollback and recovery check."); return false; }
     const updated = maintenanceAction(change, "rollback", { evidence: form.note });
-    if (updated === change) return false;
+    if (updated === change) { toast("This request is not ready for rollback. Check its status and documented approval path."); return false; }
     updated.history = [...(change.history || []), `${nowLabel()} · Rollback executed · ${form.note.trim()}`];
     updated.rollbackEvidence = form.note.trim();
     state.maintenance[index] = updated;
@@ -568,11 +603,13 @@ function openRollback(change) {
   } });
 }
 function showChangeForm(prefill = {}) {
+  if (state.maintenance.length >= casebookLimits.maintenance) { toast(`Demo change-request limit reached (${casebookLimits.maintenance}). Reset the demo to start a new casebook.`); return; }
   const systems = ["Application server · ERP", "Primary database · Finance", "Core switch · North campus", "Edge firewall · HQ"];
   const owners = ["R. Patel", "T. Brown", "Jamie Diaz", "Security operations"];
   openDialog({ eyebrow: prefill.findingId ? `SECURITY HANDOFF · ${prefill.findingId}` : "CHANGE CONTROL · SYNTHETIC", heading: "New change request", description: "Define ownership, agreed window, impact, validation, and a workable recovery path.", submit: "Submit for readiness review", content: `<label>Change title<input name="title" required maxlength="90" value="${esc(prefill.title || "")}" placeholder="e.g. Apply monthly security updates"></label><div class="form-row"><label>System<select name="system">${systems.map(system => `<option ${prefill.system === system ? "selected" : ""}>${esc(system)}</option>`).join("")}</select></label><label>Change owner<select name="owner" required><option value="">Assign owner</option>${owners.map(owner => `<option ${prefill.owner === owner ? "selected" : ""}>${esc(owner)}</option>`).join("")}</select></label></div><div class="form-row"><label>Maintenance window<input name="window" required value="${esc(prefill.window || "")}" placeholder="e.g. Friday · 22:00–23:00"></label><label>Risk level<select name="risk">${["Low", "Medium", "High"].map(risk => `<option ${prefill.risk === risk || (!prefill.risk && risk === "Medium") ? "selected" : ""}>${risk}</option>`).join("")}</select></label></div><label>Service impact assessment<textarea name="impact" rows="2" required minlength="12" placeholder="Affected users, expected impact, and communication plan.">${esc(prefill.impact || "")}</textarea></label><label>Post-change validation plan<textarea name="validationPlan" rows="2" required minlength="12" placeholder="Health check, baseline comparison, and user confirmation.">${esc(prefill.validationPlan || "")}</textarea></label><label>Rollback plan<textarea name="rollback" rows="3" required minlength="12" placeholder="Pre-change state, restore steps, owner, and recovery validation.">${esc(prefill.rollback || "")}</textarea></label><label class="confirm-check"><input type="checkbox" name="windowConfirmed" value="yes" required><span>I confirmed this maintenance window with the service owner.</span></label>`, onSubmit: form => {
-    const next = Math.max(208, ...state.maintenance.map(change => Number(change.id.split("-")[1]) || 208)) + 1;
-    const change = { id: `CHG-${next}`, title: form.title.trim(), system: form.system, window: form.window.trim(), risk: form.risk, status: "Pending approval", owner: form.owner, rollback: form.rollback.trim(), impact: form.impact.trim(), validationPlan: form.validationPlan.trim(), findingId: prefill.findingId || "", readiness: { scopeOwner: true, windowConfirmed: form.windowConfirmed === "yes", impactAssessed: true, rollbackDocumented: true, validationReady: true }, history: [`${nowLabel()} · Request submitted by ${form.owner}${prefill.findingId ? ` · linked to ${prefill.findingId}` : ""} · readiness review required`] };
+    if (!form.title.trim() || !form.system.trim() || !form.window.trim() || textLength(form.impact.trim()) < 12 || textLength(form.rollback.trim()) < 12 || textLength(form.validationPlan.trim()) < 12) { toast("Complete the title, system, window, impact, validation plan, and rollback details before submitting."); return false; }
+    if (state.maintenance.length >= casebookLimits.maintenance) { toast("The change-request limit was reached while this form was open. No request was created."); return false; }
+    const change = { id: nextCaseId(state.maintenance, "CHG", 208), title: form.title.trim(), system: form.system, window: form.window.trim(), risk: form.risk, status: "Pending approval", owner: form.owner, rollback: form.rollback.trim(), impact: form.impact.trim(), validationPlan: form.validationPlan.trim(), findingId: prefill.findingId || "", readiness: { scopeOwner: true, windowConfirmed: form.windowConfirmed === "yes", impactAssessed: true, rollbackDocumented: true, validationReady: true }, history: [`${nowLabel()} · Request submitted by ${form.owner}${prefill.findingId ? ` · linked to ${prefill.findingId}` : ""} · readiness review required`] };
     state.maintenance.unshift(change);
     addEvent(`${change.id} submitted · ${change.title}`);
     save(); render(); toast("Request submitted; approval remains gated on its validation plan.");
@@ -636,6 +673,8 @@ function bindPageEvents() {
       setTimeout(() => showTicketForm({ subject: `Network fault · ${result.likelyCause}`, category: "Network", priority: result.checks.some(check => check[2] === "fail") ? "High" : "Normal", details: `${result.site} · ${result.scope} · ${result.symptom}. Likely fault domain: ${result.likelyCause}. Evidence: ${result.checks.map(check => `${check[0]}: ${check[1]}`).join("; ")}. Next test: ${result.nextAction}` }), 30);
     } else if (action === "new-change") {
       showChangeForm();
+    } else if (action === "change-plan") {
+      const change = state.maintenance.find(item => item.id === id); if (change) openChangeValidationPlan(change);
     } else if (action === "change-approve" || action === "change-reject") {
       const change = state.maintenance.find(item => item.id === id); if (change) openChangeDecision(change, action.split("-")[1]);
     } else if (action === "change-start") {
