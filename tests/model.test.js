@@ -143,6 +143,16 @@ test("browser state validation applies the API's portable JSON checks to extensi
   assert.equal(isDemoState(state), false, "non-finite extensions are rejected");
 });
 
+test("large JSON integer tokens use the browser's number and serialization boundaries", () => {
+  const state = cloneSeed();
+  const roundedByJsonParse = JSON.parse("999999999999999999999");
+  assert.equal(roundedByJsonParse, 1e21);
+  state.nodes[0].extension = { value: roundedByJsonParse };
+  assert.equal(isDemoState(state), true, "values serialized with exponent notation remain portable");
+  state.nodes[0].extension = { value: 1e20 };
+  assert.equal(isDemoState(state), false, "imprecise integers serialized without exponent notation are rejected");
+});
+
 test("demo state migration preserves a browser save with previous utilization signal names", () => {
   const saved = cloneSeed();
   const database = saved.nodes.find(node => node.id === "db-pri-01");

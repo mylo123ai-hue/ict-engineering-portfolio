@@ -120,11 +120,21 @@ def parse_json(data):
             result[key] = value
         return result
 
+    def javascript_integer(token):
+        """Parse integer tokens with the same IEEE-754 rounding as a browser."""
+        try:
+            number = float(token)
+        except (OverflowError, ValueError):
+            return math.inf
+        if math.isfinite(number) and number.is_integer() and abs(number) <= MAX_SAFE_REVISION:
+            return int(number)
+        return number
+
     if isinstance(data, bytes):
         # JSON exchanged between systems is UTF-8; accepting UTF-16/32 byte
         # payloads here would disagree with the API's declared media type.
         data = data.decode("utf-8")
-    return json.loads(data, object_pairs_hook=unique_object)
+    return json.loads(data, object_pairs_hook=unique_object, parse_int=javascript_integer)
 
 
 def validate_history_row(row):

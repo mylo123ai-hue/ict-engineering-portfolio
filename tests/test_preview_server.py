@@ -168,6 +168,23 @@ class DemoStateApiTests(unittest.TestCase):
         self.assertEqual(self.request("/api/state", "PUT", {"revision": 1, "state": invalid})[0], 422)
         self.assertEqual(self.request("/api/state")[1], {"state": state, "revision": 1})
 
+    def test_large_json_integer_tokens_match_browser_number_rounding(self):
+        for index, value in enumerate((999_999_999_999_999_999_999, 10 ** 21, 10 ** 100), start=1):
+            state = self.valid_casebook()
+            state["nodes"][0]["extension"] = {"value": value}
+            with self.subTest(value_digits=len(str(value))):
+                status, response = self.request("/api/state", "PUT", {"revision": index - 1, "state": state})
+                self.assertEqual(status, 200)
+                self.assertEqual(response["revision"], index)
+                stored = self.request("/api/state")[1]["state"]["nodes"][0]["extension"]["value"]
+                self.assertEqual(stored, float(value))
+
+        for value in (99_999_999_999_999_999_999, 9_007_199_254_740_992):
+            state = self.valid_casebook()
+            state["nodes"][0]["extension"] = {"value": value}
+            with self.subTest(rejected_value=str(value)):
+                self.assertEqual(self.request("/api/state", "PUT", {"revision": 3, "state": state})[0], 422)
+
     def test_revision_history_and_restore_are_auditable_and_compare_and_swap(self):
         original = self.valid_casebook()
         original["findings"] = [{
