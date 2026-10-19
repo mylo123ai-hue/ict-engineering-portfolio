@@ -53,6 +53,9 @@ function isIsoTimestamp(value) {
   return isText(value) && !value.startsWith("0000-") && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
     && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 }
+function foldAsciiCase(value) {
+  return value.replace(/[A-Z]/g, character => String.fromCharCode(character.charCodeAt(0) + 32));
+}
 function isPortableJSON(root) {
   const pending = [{ value: root, leave: false }];
   const active = new Set();
@@ -140,7 +143,7 @@ function validChange(change) {
     const markerIndex = entry.indexOf(marker);
     if (markerIndex === -1) return false;
     const reviewer = entry.slice(markerIndex + marker.length).split(" · ")[0].trim();
-    return reviewer && reviewer.toLowerCase() !== change.owner.trim().toLowerCase();
+    return reviewer && foldAsciiCase(reviewer) !== foldAsciiCase(change.owner.trim());
   });
   if (readyChangeStatuses.includes(change.status) && !readinessChecks.every(([key]) => change.readiness[key] === true)) return false;
   if (readyChangeStatuses.includes(change.status) && !hasRecordedDecision("Approved by ")) return false;
@@ -368,7 +371,7 @@ export function maintenanceAction(change, action, { peerReviewer, windowOpenConf
   if (action === "approve") {
     const reviewerName = typeof peerReviewer === "string" ? peerReviewer.trim() : "";
     const ownerName = typeof change.owner === "string" ? change.owner.trim() : "";
-    const sameReviewer = reviewerName.toLowerCase() === ownerName.toLowerCase();
+    const sameReviewer = foldAsciiCase(reviewerName) === foldAsciiCase(ownerName);
     if (change.status !== "Pending approval" || !ready || !ownerName || ownerName === "Unassigned" || !["Low", "Medium", "High"].includes(change.risk)) return change;
     if (change.risk === "High" && (change.readiness?.peerReview !== true || !reviewerName || sameReviewer)) return change;
     return { ...change, status: "Approved" };

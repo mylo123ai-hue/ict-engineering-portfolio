@@ -70,6 +70,11 @@ def trim_text(value):
     return value.strip(ECMASCRIPT_WHITESPACE)
 
 
+def fold_ascii_case(value):
+    """Fold ASCII name casing without depending on runtime Unicode table versions."""
+    return re.sub(r"[A-Z]", lambda match: chr(ord(match.group(0)) + 32), value)
+
+
 def is_one_of(value, options):
     return is_text(value) and value in options
 
@@ -323,7 +328,7 @@ def valid_change(change):
             if "Peer review by " not in entry:
                 continue
             reviewer = trim_text(entry.split("Peer review by ", 1)[1].split(" · ", 1)[0])
-            if reviewer and reviewer.lower() != trim_text(change["owner"]).lower():
+            if reviewer and fold_ascii_case(reviewer) != fold_ascii_case(trim_text(change["owner"])):
                 return True
         return False
 

@@ -121,7 +121,7 @@ The starting point was `development` at `9f632ad7469f0254ec2b622c112da2499a164ec
 - A code-point sweep from U+0000 through U+10FFFF compared JavaScript `String.trim()` with the API's `trim_text` set; the removed code-point sets matched exactly.
 - A maintenance readiness regression proves an unready request remains valid while the plan is outstanding, but setting `validationReady` requires a non-empty plan of at least 12 characters.
 - Browser and Python string-length checks now use the same Unicode code-point semantics. Six emoji no longer meet a 12-character evidence requirement merely because JavaScript counts UTF-16 surrogate pairs separately.
-- A final side-by-side validator review found two edge cases: the browser rejected an incident owner of `Unassigned` while the API accepted it, and JavaScript locale-lowercasing disagreed with Python full case-folding for one Unicode reviewer name. The API now rejects `Unassigned`; both layers now use matching locale-independent Unicode lowercase comparison for reviewer/owner names. Focused regressions confirm those rules on both validators, including the Unicode reviewer case.
+- A final side-by-side validator review found two edge cases: the browser rejected an incident owner of `Unassigned` while the API accepted it, and the runtime Unicode lowercase tables differ between JavaScript and Python. The API now rejects `Unassigned`; both layers fold ASCII casing for reviewer/owner comparisons and preserve non-ASCII characters exactly. Focused regressions confirm those rules on both validators, including the Unicode reviewer case.
 
 ### Final-cycle browser and persistence checks
 
